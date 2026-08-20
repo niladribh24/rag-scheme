@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Setu — AI Scheme Navigator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Work+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap');
+
+:root{
+  --paper:#FAF7F1;
+  --paper-alt:#F1EBDD;
+  --card:#FFFFFF;
+  --ink:#1C2541;
+  --ink-soft:#5B6280;
+  --ink-faint:#9198B0;
+  --saffron:#E08D3C;
+  --saffron-soft:#FBE9D2;
+  --green:#2D6A4F;
+  --green-soft:#E1EDE6;
+  --red:#9C3B3B;
+  --red-soft:#F5E5E2;
+  --chakra:#1D4E89;
+  --chakra-soft:#E1EAF3;
+  --border:#E2D9C7;
+  --radius:14px;
+}
+
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--paper);
+  color:var(--ink);
+  font-family:'Work Sans',-apple-system,sans-serif;
+  min-height:100vh;
+}
+.mono{font-family:'IBM Plex Mono',monospace;}
+.display{font-family:'Fraunces',serif;}
+
+/* ---------- Header ---------- */
+header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:18px 28px;
+  border-bottom:1px solid var(--border);
+  background:var(--paper);
+  position:sticky;top:0;z-index:10;
+  flex-wrap:wrap;gap:12px;
+}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand svg{width:38px;height:38px;flex-shrink:0;}
+.brand-text .name{font-family:'Fraunces',serif;font-weight:700;font-size:24px;letter-spacing:.2px;line-height:1;}
+.brand-text .tag{font-size:12.5px;color:var(--ink-soft);margin-top:3px;}
+.langs{display:flex;gap:6px;background:var(--paper-alt);padding:4px;border-radius:999px;border:1px solid var(--border);}
+.lang-btn{
+  border:none;background:transparent;padding:7px 14px;border-radius:999px;
+  font-family:'Work Sans';font-weight:600;font-size:13px;color:var(--ink-soft);cursor:pointer;
+  transition:.2s;
+}
+.lang-btn.active{background:var(--ink);color:var(--paper);}
+
+/* ---------- Layout ---------- */
+main{
+  display:grid;
+  grid-template-columns:1.6fr 1fr;
+  gap:0;
+  max-width:1240px;margin:0 auto;
+  min-height:calc(100vh - 82px);
+}
+@media(max-width:880px){
+  main{grid-template-columns:1fr;}
+  .side{order:2;border-left:none !important;border-top:1px solid var(--border);}
+}
+
+/* ---------- Chat panel ---------- */
+.chat-panel{
+  display:flex;flex-direction:column;
+  border-right:1px solid var(--border);
+  min-height:calc(100vh - 82px);
+}
+.chat-scroll{
+  flex:1;overflow-y:auto;
+  padding:24px 26px 10px;
+  display:flex;flex-direction:column;gap:18px;
+}
+.msg-row{display:flex;gap:10px;max-width:100%;}
+.msg-row.user{justify-content:flex-end;}
+.bubble{
+  padding:13px 16px;border-radius:16px;
+  font-size:15px;line-height:1.55;
+  max-width:78%;
+}
+.msg-row.user .bubble{
+  background:var(--ink);color:var(--paper);
+  border-bottom-right-radius:4px;
+}
+.msg-row.bot .bubble{
+  background:var(--card);border:1px solid var(--border);
+  border-bottom-left-radius:4px;
+  max-width:100%;
+}
+.avatar{
+  width:30px;height:30px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--saffron-soft);border:1px solid var(--saffron);
+}
+.avatar svg{width:16px;height:16px;}
+
+/* pipeline animation */
+.pipeline{
+  display:flex;align-items:center;gap:0;margin:2px 0 14px 40px;
+  max-width:520px;
+}
+.pl-node{display:flex;flex-direction:column;align-items:center;flex:1;position:relative;}
+.pl-dot{
+  width:20px;height:20px;border-radius:50%;
+  background:var(--paper-alt);border:2px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  transition:.35s;z-index:2;
+}
+.pl-dot.on{background:var(--chakra);border-color:var(--chakra);}
+.pl-dot svg{width:10px;height:10px;opacity:0;transition:.25s;}
+.pl-dot.on svg{opacity:1;}
+.pl-line{
+  position:absolute;top:9px;left:50%;width:100%;height:2px;
+  background:var(--border);z-index:1;
+}
+.pl-line.on{background:var(--chakra);}
+.pl-node:last-child .pl-line{display:none;}
+.pl-label{font-size:10px;color:var(--ink-faint);margin-top:6px;text-align:center;line-height:1.2;max-width:80px;}
+.pl-label.on{color:var(--chakra);font-weight:600;}
+
+/* profile chips inside a bot message */
+.profile-strip{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 4px;}
+.chip{
+  font-size:12px;padding:5px 10px;border-radius:999px;
+  background:var(--chakra-soft);color:var(--chakra);font-weight:600;
+  display:inline-flex;align-items:center;gap:4px;
+}
+
+/* scheme cards */
+.scheme-card{
+  border:1px solid var(--border);border-radius:var(--radius);
+  padding:16px 18px;margin-top:12px;background:var(--card);
+}
+.scheme-card.eligible{border-left:4px solid var(--green);}
+.scheme-card.ineligible{border-left:4px solid var(--red);opacity:.92;}
+.scheme-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+.scheme-name{font-family:'Fraunces';font-weight:600;font-size:17px;}
+.status-tag{
+  font-size:11px;font-weight:700;padding:3px 9px;border-radius:999px;white-space:nowrap;
+}
+.status-tag.eligible{background:var(--green-soft);color:var(--green);}
+.status-tag.ineligible{background:var(--red-soft);color:var(--red);}
+.scheme-benefit{font-size:13.5px;color:var(--ink-soft);margin-top:4px;}
+.reasons{margin:10px 0 0;padding-left:18px;font-size:13.5px;line-height:1.6;color:var(--ink);}
+.reasons li{margin-bottom:2px;}
+.meta-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;}
+.meta-pill{
+  font-size:11.5px;background:var(--paper-alt);border:1px solid var(--border);
+  padding:4px 9px;border-radius:8px;color:var(--ink-soft);
+}
+.citation{
+  margin-top:10px;font-size:11px;color:var(--ink-faint);
+  display:flex;align-items:center;gap:5px;
+}
+.steps-toggle{
+  margin-top:10px;font-size:12.5px;font-weight:600;color:var(--chakra);
+  cursor:pointer;user-select:none;display:inline-flex;align-items:center;gap:4px;
+}
+.steps-list{display:none;margin-top:8px;padding-left:18px;font-size:13px;color:var(--ink-soft);line-height:1.7;}
+.steps-list.open{display:block;}
+
+/* input area */
+.composer{
+  border-top:1px solid var(--border);padding:14px 20px;
+  display:flex;gap:10px;background:var(--paper);
+}
+.composer input{
+  flex:1;border:1px solid var(--border);border-radius:12px;
+  padding:12px 14px;font-size:14.5px;font-family:'Work Sans';background:var(--card);
+  color:var(--ink);
+}
+.composer input:focus{outline:2px solid var(--chakra);outline-offset:1px;}
+.composer input:disabled{opacity:.6;cursor:not-allowed;}
+.send-btn{
+  background:var(--ink);color:var(--paper);border:none;border-radius:12px;
+  padding:0 20px;font-weight:600;font-size:14px;cursor:pointer;
+  display:flex;align-items:center;gap:6px;
+  transition:background .2s, opacity .2s;
+}
+.send-btn:hover:not(:disabled){background:var(--chakra);}
+.send-btn:disabled{opacity:.5;cursor:not-allowed;}
+
+.chips-row{padding:10px 20px 4px;display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border);}
+.example-chip{
+  font-size:12.5px;background:var(--card);border:1px solid var(--border);
+  padding:7px 12px;border-radius:10px;cursor:pointer;color:var(--ink-soft);
+  transition:.15s;max-width:340px;
+}
+.example-chip:hover{border-color:var(--chakra);color:var(--chakra);}
+
+/* ---------- Thinking indicator ---------- */
+.thinking-dots{
+  display:inline-flex;align-items:center;gap:4px;padding:4px 0;
+}
+.thinking-dots span{
+  width:7px;height:7px;border-radius:50%;background:var(--chakra);
+  animation:dotPulse 1.4s ease-in-out infinite;
+}
+.thinking-dots span:nth-child(2){animation-delay:.2s;}
+.thinking-dots span:nth-child(3){animation-delay:.4s;}
+@keyframes dotPulse{
+  0%,80%,100%{opacity:.3;transform:scale(.8);}
+  40%{opacity:1;transform:scale(1.1);}
+}
+
+/* ---------- Error message ---------- */
+.error-bubble{
+  background:var(--red-soft) !important;
+  border:1px solid var(--red) !important;
+  color:var(--red);
+}
+
+/* ---------- Answer text formatting ---------- */
+.answer-text{white-space:pre-wrap;word-wrap:break-word;}
+
+/* ---------- Side panel ---------- */
+.side{padding:26px 24px;}
+.side h3{
+  font-family:'Fraunces';font-size:14px;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--ink-soft);margin:0 0 12px;font-weight:600;
+}
+.arch-card{
+  background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
+  padding:18px;margin-bottom:22px;
+}
+.arch-step{display:flex;gap:10px;padding:9px 0;border-bottom:1px dashed var(--border);}
+.arch-step:last-child{border-bottom:none;}
+.arch-num{
+  font-family:'IBM Plex Mono';font-size:11px;color:var(--saffron);font-weight:600;
+  width:20px;flex-shrink:0;padding-top:1px;
+}
+.arch-text b{font-size:13.5px;display:block;}
+.arch-text span{font-size:12px;color:var(--ink-soft);}
+
+.stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:22px;}
+.stat-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;}
+.stat-box .num{font-family:'Fraunces';font-size:26px;font-weight:700;color:var(--chakra);}
+.stat-box .lbl{font-size:11.5px;color:var(--ink-soft);margin-top:2px;}
+
+.corpus-list{display:flex;flex-direction:column;gap:0;}
+.corpus-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:9px 0;border-bottom:1px solid var(--border);font-size:13px;
+}
+.corpus-item:last-child{border-bottom:none;}
+.corpus-item .dept{color:var(--ink-soft);font-size:11.5px;}
+
+footer.note{
+  font-size:11.5px;color:var(--ink-faint);padding:14px 24px 26px;line-height:1.6;
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <svg viewBox="0 0 48 48" fill="none">
+      <path d="M4 34 C4 22, 12 14, 24 14 C36 14, 44 22, 44 34" stroke="#1D4E89" stroke-width="3.4" stroke-linecap="round"/>
+      <circle cx="4" cy="36" r="3.4" fill="#E08D3C"/>
+      <circle cx="44" cy="36" r="3.4" fill="#E08D3C"/>
+      <circle cx="24" cy="14" r="3.4" fill="#1C2541"/>
+    </svg>
+    <div class="brand-text">
+      <div class="name">सेतु · Setu</div>
+      <div class="tag" id="tagline">AI that bridges citizens and government schemes</div>
+    </div>
+  </div>
+  <div class="langs" id="langSwitch">
+    <button class="lang-btn active" data-lang="en">English</button>
+    <button class="lang-btn" data-lang="hi">हिंदी</button>
+    <button class="lang-btn" data-lang="kn">ಕನ್ನಡ</button>
+  </div>
+</header>
+
+<main>
+  <section class="chat-panel">
+    <div class="chat-scroll" id="chatScroll"></div>
+    <div class="chips-row" id="chipsRow"></div>
+    <div class="composer">
+      <input type="text" id="queryInput" placeholder="Type your situation in any language…">
+      <button class="send-btn" id="sendBtn">
+        <span id="sendLabel">Ask</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h16M14 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </section>
+
+  <aside class="side">
+    <h3 id="archTitle">How Setu answers you</h3>
+    <div class="arch-card" id="archCard"></div>
+
+    <h3 id="statsTitle">Demo knowledge base</h3>
+    <div class="stat-grid">
+      <div class="stat-box"><div class="num">10</div><div class="lbl" id="statSchemes">schemes indexed</div></div>
+      <div class="stat-box"><div class="num">3</div><div class="lbl" id="statLangs">languages supported</div></div>
+    </div>
+
+    <h3 id="corpusTitle">Sample sources in the index</h3>
+    <div class="corpus-card arch-card corpus-list" id="corpusList"></div>
+  </aside>
+</main>
+
+<footer class="note" id="disclaimer"></footer>
+
+<script>
+/* ============ i18n strings ============ */
+const T = {
+  en:{
+    tagline:"AI that bridges citizens and government schemes",
+    archTitle:"How Setu answers you",
+    statSchemes:"schemes indexed", statLangs:"languages supported",
+    corpusTitle:"Sample sources in the index",
+    sendLabel:"Ask",
+    placeholder:"Type your situation in any language…",
+    welcome:"Namaste. Tell me about your situation — your work, income, family, or what kind of help you need — and I'll check which government schemes you qualify for.",
+    thinking:"Thinking…",
+    errorOffline:"I couldn't reach the server. Please make sure the backend is running (uvicorn api:app) and try again.",
+    errorGeneric:"Something went wrong while processing your question. Please try again.",
+    chips:[
+      "I'm a farmer in Karnataka earning under ₹2 lakh a year, how can I get crop insurance?",
+      "My daughter is 10, I want to start saving for her future",
+      "I run a small tailoring shop and need a loan to expand",
+      "I am a farmer earning ₹20 lakh a year, am I eligible for PM-KISAN?"
+    ],
+    disclaimer:"Demo prototype for Smart India Hackathon — scheme data is illustrative and simplified for demonstration. Verify eligibility on the official portal before applying.",
+    archSteps:[
+      ["Detect language","Identifies which of 22+ Indian languages you're typing or speaking in."],
+      ["Understand situation","Extracts occupation, income, age, gender and need from your sentence."],
+      ["Retrieve schemes","Searches the scheme knowledge base (RAG) for relevant matches."],
+      ["Check eligibility","Runs each candidate scheme's actual criteria — not a guess."],
+      ["Explain in your language","Answers with reasoning and the exact source clause."]
+    ],
+    corpus:[["PM-KISAN Guidelines","Ministry of Agriculture"],["PMFBY Operational Guidelines","Ministry of Agriculture"],["Ayushman Bharat PM-JAY Manual","Ministry of Health"],["MUDRA Scheme Guidelines","MSME Ministry"],["Karnataka Gruha Lakshmi GO","Govt. of Karnataka"]]
+  },
+  hi:{
+    tagline:"नागरिकों को सरकारी योजनाओं से जोड़ने वाली AI",
+    archTitle:"सेतु आपको जवाब कैसे देता है",
+    statSchemes:"योजनाएं जोड़ी गईं", statLangs:"भाषाएं समर्थित",
+    corpusTitle:"डेटाबेस के कुछ स्रोत",
+    sendLabel:"पूछें",
+    placeholder:"अपनी स्थिति किसी भी भाषा में लिखें…",
+    welcome:"नमस्ते। मुझे अपनी स्थिति बताएं — आपका काम, आय, परिवार, या आपको किस मदद की ज़रूरत है — मैं बताऊंगा आप किन सरकारी योजनाओं के लिए पात्र हैं।",
+    thinking:"सोच रहा हूं…",
+    errorOffline:"मैं सर्वर तक नहीं पहुंच पाया। कृपया सुनिश्चित करें कि बैकएंड चल रहा है (uvicorn api:app) और पुनः प्रयास करें।",
+    errorGeneric:"आपके प्रश्न को संसाधित करते समय कुछ गड़बड़ हुई। कृपया पुनः प्रयास करें।",
+    chips:[
+      "मैं कर्नाटक में किसान हूं, मेरी सालाना आय 2 लाख से कम है, फसल बीमा कैसे लूं?",
+      "मेरी बेटी 10 साल की है, मैं उसके भविष्य के लिए बचत शुरू करना चाहता हूं",
+      "मेरी छोटी सिलाई की दुकान है, मुझे इसे बढ़ाने के लिए कर्ज चाहिए",
+      "मैं किसान हूं और सालाना 20 लाख कमाता हूं, क्या मैं PM-KISAN के लिए पात्र हूं?"
+    ],
+    disclaimer:"स्मार्ट इंडिया हैकाथॉन के लिए डेमो प्रोटोटाइप — योजना डेटा प्रदर्शन हेतु सरल किया गया है। आवेदन से पहले आधिकारिक पोर्टल पर पात्रता ज़रूर जांचें।",
+    archSteps:[
+      ["भाषा पहचानें","आप 22+ भारतीय भाषाओं में से किसमें लिख या बोल रहे हैं, यह समझता है।"],
+      ["स्थिति समझें","आपके वाक्य से व्यवसाय, आय, उम्र, लिंग और ज़रूरत निकालता है।"],
+      ["योजनाएं खोजें","योजना डेटाबेस (RAG) में प्रासंगिक योजनाएं खोजता है।"],
+      ["पात्रता जांचें","हर योजना की असली शर्तों पर जांच करता है — अंदाज़ा नहीं।"],
+      ["आपकी भाषा में समझाएं","तर्क और सटीक स्रोत खंड के साथ जवाब देता है।"]
+    ],
+    corpus:[["PM-KISAN दिशानिर्देश","कृषि मंत्रालय"],["PMFBY परिचालन दिशानिर्देश","कृषि मंत्रालय"],["आयुष्मान भारत PM-JAY मैनुअल","स्वास्थ्य मंत्रालय"],["MUDRA योजना दिशानिर्देश","MSME मंत्रालय"],["कर्नाटक गृह लक्ष्मी GO","कर्नाटक सरकार"]]
+  },
+  kn:{
+    tagline:"ನಾಗರಿಕರನ್ನು ಸರ್ಕಾರಿ ಯೋಜನೆಗಳಿಗೆ ಬೆಸೆಯುವ AI",
+    archTitle:"ಸೇತು ನಿಮಗೆ ಹೇಗೆ ಉತ್ತರಿಸುತ್ತದೆ",
+    statSchemes:"ಯೋಜನೆಗಳು ಸೇರಿಸಲಾಗಿದೆ", statLangs:"ಭಾಷೆಗಳು ಬೆಂಬಲಿತ",
+    corpusTitle:"ಡೇಟಾಬೇಸ್‌ನ ಕೆಲವು ಮೂಲಗಳು",
+    sendLabel:"ಕೇಳಿ",
+    placeholder:"ನಿಮ್ಮ ಪರಿಸ್ಥಿತಿಯನ್ನು ಯಾವುದೇ ಭಾಷೆಯಲ್ಲಿ ಬರೆಯಿರಿ…",
+    welcome:"ನಮಸ್ತೆ. ನಿಮ್ಮ ಪರಿಸ್ಥಿತಿ ತಿಳಿಸಿ — ನಿಮ್ಮ ಕೆಲಸ, ಆದಾಯ, ಕುಟುಂಬ, ಅಥವಾ ಯಾವ ಸಹಾಯ ಬೇಕು — ನೀವು ಯಾವ ಸರ್ಕಾರಿ ಯೋಜನೆಗಳಿಗೆ ಅರ್ಹರು ಎಂದು ನಾನು ಪರಿಶೀಲಿಸುತ್ತೇನೆ.",
+    thinking:"ಯೋಚಿಸುತ್ತಿದ್ದೇನೆ…",
+    errorOffline:"ನಾನು ಸರ್ವರ್ ಅನ್ನು ತಲುಪಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ. ಬ್ಯಾಕೆಂಡ್ ಚಾಲನೆಯಲ್ಲಿದೆ ಎಂದು ಖಚಿತಪಡಿಸಿಕೊಳ್ಳಿ (uvicorn api:app) ಮತ್ತು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    errorGeneric:"ನಿಮ್ಮ ಪ್ರಶ್ನೆಯನ್ನು ಪ್ರಕ್ರಿಯೆಗೊಳಿಸುವಾಗ ಏನೋ ತಪ್ಪಾಯಿತು. ದಯವಿಟ್ಟು ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    chips:[
+      "ನಾನು ಕರ್ನಾಟಕದ ರೈತ, ವಾರ್ಷಿಕ ಆದಾಯ 2 ಲಕ್ಷಕ್ಕಿಂತ ಕಡಿಮೆ, ಬೆಳೆ ವಿಮೆ ಪಡೆಯುವುದು ಹೇಗೆ?",
+      "ನನ್ನ ಮಗಳಿಗೆ 10 ವರ್ಷ, ಅವಳ ಭವಿಷ್ಯಕ್ಕಾಗಿ ಉಳಿತಾಯ ಪ್ರಾರಂಭಿಸಬೇಕು",
+      "ನನಗೆ ಸಣ್ಣ ಟೈಲರಿಂಗ್ ಅಂಗಡಿ ಇದೆ, ವಿಸ್ತರಿಸಲು ಸಾಲ ಬೇಕು",
+      "ನಾನು ರೈತ, ವಾರ್ಷಿಕ 20 ಲಕ್ಷ ಆದಾಯ, ನಾನು PM-KISAN ಗೆ ಅರ್ಹನೇ?"
+    ],
+    disclaimer:"ಸ್ಮಾರ್ಟ್ ಇಂಡಿಯಾ ಹ್ಯಾಕಥಾನ್‌ಗಾಗಿ ಡೆಮೊ ಪ್ರೋಟೋಟೈಪ್ — ಯೋಜನೆ ಡೇಟಾವನ್ನು ಪ್ರದರ್ಶನಕ್ಕಾಗಿ ಸರಳಗೊಳಿಸಲಾಗಿದೆ. ಅರ್ಜಿ ಸಲ್ಲಿಸುವ ಮೊದಲು ಅಧಿಕೃತ ಪೋರ್ಟಲ್‌ನಲ್ಲಿ ಪರಿಶೀಲಿಸಿ.",
+    archSteps:[
+      ["ಭಾಷೆ ಗುರುತಿಸಿ","ನೀವು 22+ ಭಾರತೀಯ ಭಾಷೆಗಳಲ್ಲಿ ಯಾವುದರಲ್ಲಿ ಬರೆಯುತ್ತಿದ್ದೀರಿ ಎಂದು ಗುರುತಿಸುತ್ತದೆ."],
+      ["ಪರಿಸ್ಥಿತಿ ಅರ್ಥಮಾಡಿಕೊಳ್ಳಿ","ನಿಮ್ಮ ವಾಕ್ಯದಿಂದ ಉದ್ಯೋಗ, ಆದಾಯ, ವಯಸ್ಸು, ಲಿಂಗ ಮತ್ತು ಅಗತ್ಯವನ್ನು ಹೊರತೆಗೆಯುತ್ತದೆ."],
+      ["ಯೋಜನೆಗಳನ್ನು ಹುಡುಕಿ","ಯೋಜನೆ ಡೇಟಾಬೇಸ್‌ನಲ್ಲಿ (RAG) ಸಂಬಂಧಿತ ಯೋಜನೆಗಳನ್ನು ಹುಡುಕುತ್ತದೆ."],
+      ["ಅರ್ಹತೆ ಪರಿಶೀಲಿಸಿ","ಪ್ರತಿ ಯೋಜನೆಯ ನಿಜವಾದ ಮಾನದಂಡಗಳನ್ನು ಪರಿಶೀಲಿಸುತ್ತದೆ — ಊಹೆ ಅಲ್ಲ."],
+      ["ನಿಮ್ಮ ಭಾಷೆಯಲ್ಲಿ ವಿವರಿಸಿ","ಕಾರಣ ಮತ್ತು ನಿಖರವಾದ ಮೂಲ ಷರತ್ತಿನೊಂದಿಗೆ ಉತ್ತರಿಸುತ್ತದೆ."]
+    ],
+    corpus:[["PM-KISAN ಮಾರ್ಗಸೂಚಿಗಳು","ಕೃಷಿ ಸಚಿವಾಲಯ"],["PMFBY ಕಾರ್ಯಾಚರಣೆ ಮಾರ್ಗಸೂಚಿಗಳು","ಕೃಷಿ ಸಚಿವಾಲಯ"],["ಆಯುಷ್ಮಾನ್ ಭಾರತ್ PM-JAY ಕೈಪಿಡಿ","ಆರೋಗ್ಯ ಸಚಿವಾಲಯ"],["MUDRA ಯೋಜನೆ ಮಾರ್ಗಸೂಚಿಗಳು","MSME ಸಚಿವಾಲಯ"],["ಕರ್ನಾಟಕ ಗೃಹ ಲಕ್ಷ್ಮಿ GO","ಕರ್ನಾಟಕ ಸರ್ಕಾರ"]]
+  }
+};
+
+/* ============ Backend API config ============ */
+const API_BASE = 'http://localhost:8000';
+
+/* ============ rendering helpers ============ */
+let currentLang = 'en';
+let isProcessing = false;
+const chatScroll = document.getElementById('chatScroll');
+const queryInput = document.getElementById('queryInput');
+const sendBtn = document.getElementById('sendBtn');
+
+function svgCheck(){return '<svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>';}
+function svgBot(){return '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#1C2541" stroke-width="1.6"/><circle cx="9" cy="11" r="1.3" fill="#1C2541"/><circle cx="15" cy="11" r="1.3" fill="#1C2541"/><path d="M9 15c1 1 5 1 6 0" stroke="#1C2541" stroke-width="1.4" stroke-linecap="round"/></svg>';}
+
+function escapeHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
+
+function addUserMsg(text){
+  const row = document.createElement('div');
+  row.className='msg-row user';
+  row.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
+  chatScroll.appendChild(row);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+}
+
+function addBotWelcome(){
+  const row = document.createElement('div');
+  row.className='msg-row bot';
+  row.innerHTML = `<div class="avatar">${svgBot()}</div><div class="bubble">${T[currentLang].welcome}</div>`;
+  chatScroll.appendChild(row);
+}
+
+function addBotMessage(text){
+  const row = document.createElement('div');
+  row.className='msg-row bot';
+  row.innerHTML = `<div class="avatar">${svgBot()}</div><div class="bubble"><div class="answer-text">${escapeHtml(text)}</div></div>`;
+  chatScroll.appendChild(row);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+}
+
+function addThinkingIndicator(){
+  const row = document.createElement('div');
+  row.className='msg-row bot';
+  row.id='thinkingRow';
+  row.innerHTML = `<div class="avatar">${svgBot()}</div><div class="bubble"><div class="thinking-dots"><span></span><span></span><span></span></div> <span style="font-size:13px;color:var(--ink-soft)">${T[currentLang].thinking}</span></div>`;
+  chatScroll.appendChild(row);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+  return row;
+}
+
+function removeThinkingIndicator(){
+  const el = document.getElementById('thinkingRow');
+  if(el) el.remove();
+}
+
+function addErrorMessage(msg){
+  const row = document.createElement('div');
+  row.className='msg-row bot';
+  row.innerHTML = `<div class="avatar">${svgBot()}</div><div class="bubble error-bubble">${escapeHtml(msg)}</div>`;
+  chatScroll.appendChild(row);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+}
+
+/* ============ pipeline animation ============ */
+async function runPipeline(query){
+  const t = T[currentLang];
+  const stageNames = t.archSteps.map(s=>s[0]);
+  const pipelineId = 'pl'+Date.now();
+  const pipeHtml = `<div class="pipeline" id="${pipelineId}">` + stageNames.map((label,i)=>`
+    <div class="pl-node">
+      <div class="pl-dot" data-i="${i}">${svgCheck()}<div class="pl-line"></div></div>
+      <div class="pl-label" data-i="${i}">${label}</div>
+    </div>`).join('') + `</div>`;
+
+  const wrapper = document.createElement('div');
+  wrapper.innerHTML = pipeHtml;
+  chatScroll.appendChild(wrapper.firstElementChild);
+  chatScroll.scrollTop = chatScroll.scrollHeight;
+
+  const pipeEl = document.getElementById(pipelineId);
+  for(let i=0;i<stageNames.length;i++){
+    await new Promise(r=>setTimeout(r,320));
+    pipeEl.querySelector(`.pl-dot[data-i="${i}"]`).classList.add('on');
+    pipeEl.querySelector(`.pl-label[data-i="${i}"]`).classList.add('on');
+    const line = pipeEl.querySelector(`.pl-dot[data-i="${i}"] .pl-line`);
+    if(line) line.classList.add('on');
+    chatScroll.scrollTop = chatScroll.scrollHeight;
+  }
+  await new Promise(r=>setTimeout(r,150));
+}
+
+/* ============ UI state management ============ */
+function setProcessing(active){
+  isProcessing = active;
+  queryInput.disabled = active;
+  sendBtn.disabled = active;
+}
+
+/* ============ core: ask the backend ============ */
+async function askBackend(question){
+  const response = await fetch(`${API_BASE}/ask`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ question })
+  });
+
+  if(!response.ok){
+    throw new Error(`Server responded with ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data.answer;
+}
+
+/* ============ main query handler ============ */
+async function handleQuery(query){
+  if(isProcessing) return;
+
+  const t = T[currentLang];
+  addUserMsg(query);
+  queryInput.value = '';
+  setProcessing(true);
+
+  // Show thinking indicator
+  const thinkingEl = addThinkingIndicator();
+
+  try {
+    // Run pipeline animation and API call concurrently
+    const [_, answer] = await Promise.all([
+      runPipeline(query),
+      askBackend(query)
+    ]);
+
+    // Remove thinking indicator, show the real answer
+    removeThinkingIndicator();
+    addBotMessage(answer);
+
+  } catch(err) {
+    removeThinkingIndicator();
+
+    // Determine error type
+    if(err instanceof TypeError && err.message.includes('fetch')){
+      // Network error — backend unreachable
+      addErrorMessage(t.errorOffline);
+    } else {
+      addErrorMessage(t.errorGeneric);
+    }
+    console.error('Setu API error:', err);
+  } finally {
+    setProcessing(false);
+    queryInput.focus();
+  }
+}
+
+/* ============ side panel render ============ */
+function renderSide(){
+  const t = T[currentLang];
+  document.getElementById('archTitle').textContent = t.archTitle;
+  document.getElementById('statSchemes').textContent = t.statSchemes;
+  document.getElementById('statLangs').textContent = t.statLangs;
+  document.getElementById('corpusTitle').textContent = t.corpusTitle;
+
+  document.getElementById('archCard').innerHTML = t.archSteps.map((s,i)=>`
+    <div class="arch-step">
+      <div class="arch-num">0${i+1}</div>
+      <div class="arch-text"><b>${s[0]}</b><span>${s[1]}</span></div>
+    </div>`).join('');
+
+  document.getElementById('corpusList').innerHTML = t.corpus.map(c=>`
+    <div class="corpus-item"><span>${c[0]}</span><span class="dept">${c[1]}</span></div>`).join('');
+}
+
+/* ============ chips + composer ============ */
+function renderChips(){
+  const t = T[currentLang];
+  document.getElementById('chipsRow').innerHTML = t.chips.map(c=>`<div class="example-chip" onclick="handleQuery(${JSON.stringify(c)})">${c}</div>`).join('');
+}
+
+function applyLang(lang){
+  currentLang = lang;
+  document.querySelectorAll('.lang-btn').forEach(b=>b.classList.toggle('active', b.dataset.lang===lang));
+  const t = T[lang];
+  document.getElementById('tagline').textContent = t.tagline;
+  document.getElementById('sendLabel').textContent = t.sendLabel;
+  document.getElementById('queryInput').placeholder = t.placeholder;
+  document.getElementById('disclaimer').textContent = t.disclaimer;
+  renderSide();
+  renderChips();
+}
+
+document.getElementById('langSwitch').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.lang-btn');
+  if(!btn) return;
+  applyLang(btn.dataset.lang);
+});
+
+document.getElementById('sendBtn').addEventListener('click', ()=>{
+  const val = queryInput.value.trim();
+  if(val && !isProcessing) handleQuery(val);
+});
+document.getElementById('queryInput').addEventListener('keydown', (e)=>{
+  if(e.key==='Enter'){
+    const val = e.target.value.trim();
+    if(val && !isProcessing) handleQuery(val);
+  }
+});
+
+/* ============ init ============ */
+applyLang('en');
+addBotWelcome();
+</script>
+</body>
+</html>
