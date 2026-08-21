@@ -7,3 +7,4 @@ soundfile
 huggingface_hub
 sentencepiece
 python-dotenv
+git+https://github.com/huggingface/parler-tts.git

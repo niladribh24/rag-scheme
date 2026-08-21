@@ -76,8 +76,12 @@ def _convert_to_wav(src_path: str, dst_path: str) -> None:
 
 
 @app.post("/transcribe")
-async def transcribe(audio: UploadFile):
-    raw = await audio.read()
+def transcribe(audio: UploadFile):
+    # Plain `def`, not `async def`: this body does blocking work (ffmpeg subprocess,
+    # GPU inference) with no `await` in it. FastAPI runs sync endpoints in a
+    # threadpool automatically, so this doesn't block the event loop the way an
+    # `async def` with blocking calls inside it would.
+    raw = audio.file.read()
     if not raw:
         raise HTTPException(status_code=400, detail="Empty audio upload.")
     if len(raw) > MAX_UPLOAD_BYTES:
