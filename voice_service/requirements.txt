@@ -5,6 +5,9 @@ torch
 transformers
 soundfile
 huggingface_hub
+markdown
+beautifulsoup4
+edge-tts
 sentencepiece
 python-dotenv
 git+https://github.com/huggingface/parler-tts.git

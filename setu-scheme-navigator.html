@@ -629,12 +629,19 @@ async function transcribeAudio(blob){
 }
 
 async function speakText(text){
+  if(!text || !text.trim()){
+    console.warn('Setu: skipping /speak — answer text was empty.');
+    return null;
+  }
   const response = await fetch(`${API_BASE}/speak`, {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
     body: JSON.stringify({ text })
   });
-  if(!response.ok) return null; // voice reply is a bonus, not essential — fail silently
+  if(!response.ok){
+    console.warn('Setu: /speak failed', response.status, await response.text().catch(()=>''));
+    return null; // voice reply is a bonus, not essential — fail silently
+  }
   return response.blob();
 }
 

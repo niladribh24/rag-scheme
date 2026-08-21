@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import os
+import re
 import subprocess
 import tempfile
 import threading
@@ -7,12 +9,15 @@ import time
 from io import BytesIO
 from pathlib import Path
 
+import edge_tts
 import soundfile as sf
 import torch
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
+from markdown import markdown
 from parler_tts import ParlerTTSForConditionalGeneration
 from pydantic import BaseModel
 from transformers import AutoModel, AutoTokenizer
@@ -98,6 +103,51 @@ def _convert_to_wav(src_path: str, dst_path: str) -> None:
         )
 
 
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def _markdown_to_speech_text(raw: str) -> str:
+    """Strip markdown formatting so TTS doesn't try to "speak" **, |, #, etc.
+    The frontend renders the original markdown for display — this only affects
+    what actually gets synthesized."""
+    html = markdown(raw, extensions=["tables"])
+    text = BeautifulSoup(html, "html.parser").get_text(separator=" ", strip=True)
+    return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+# edge-tts needs an explicit voice (it doesn't auto-detect language like
+# Parler-TTS does), so we pick one by scanning the text's Unicode script —
+# the same signal Parler-TTS uses internally, just done by hand here.
+_SCRIPT_VOICE_RANGES = [
+    (range(0x0C80, 0x0D00), "kn-IN-SapnaNeural"),   # Kannada
+    (range(0x0C00, 0x0C80), "te-IN-ShrutiNeural"),  # Telugu
+    (range(0x0900, 0x0980), "hi-IN-SwaraNeural"),   # Devanagari (Hindi)
+]
+_DEFAULT_EDGE_VOICE = "en-IN-NeerjaNeural"
+
+EDGE_TTS_TIMEOUT = 10  # seconds; fall back to local TTS if this is exceeded
+
+
+def _pick_edge_voice(text: str) -> str:
+    for ch in text:
+        cp = ord(ch)
+        for script_range, voice in _SCRIPT_VOICE_RANGES:
+            if cp in script_range:
+                return voice
+    return _DEFAULT_EDGE_VOICE
+
+
+async def _edge_tts_synthesize(text: str, voice: str) -> bytes:
+    communicate = edge_tts.Communicate(text, voice)
+    chunks = bytearray()
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            chunks.extend(chunk["data"])
+    if not chunks:
+        raise RuntimeError("edge-tts returned no audio data")
+    return bytes(chunks)
+
+
 @app.post("/transcribe")
 def transcribe(audio: UploadFile):
     # Plain `def`, not `async def`: this body does blocking work (ffmpeg subprocess,
@@ -143,12 +193,37 @@ def speak(req: SpeakRequest):
     text = req.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="text must not be empty.")
+
+    text = _markdown_to_speech_text(text)
+    if not text:
+        raise HTTPException(
+            status_code=400, detail="No speakable content after removing markdown formatting."
+        )
+    # Cap applies to the cleaned text — what actually reaches the model —
+    # not the raw markdown, which is typically longer than its spoken form.
     if len(text) > MAX_SPEAK_CHARS:
         raise HTTPException(
             status_code=413, detail=f"text exceeds {MAX_SPEAK_CHARS} character limit."
         )
-    logger.info("speak: %d chars in. GPU memory before: %s", len(text), _gpu_mem_gb())
+    logger.info("speak: %d chars in", len(text))
 
+    # Primary: edge-tts (cloud, ~3s, better voice quality, free but unofficial).
+    # Any failure — network, timeout, API change — falls back to the fully
+    # local, self-hosted Parler-TTS path below rather than erroring out.
+    voice = _pick_edge_voice(text)
+    try:
+        audio_bytes = asyncio.run(
+            asyncio.wait_for(_edge_tts_synthesize(text, voice), timeout=EDGE_TTS_TIMEOUT)
+        )
+        logger.info(
+            "speak: done via edge-tts (voice=%s) in %.2fs, %d bytes",
+            voice, time.monotonic() - start, len(audio_bytes),
+        )
+        return Response(content=audio_bytes, media_type="audio/mpeg")
+    except Exception as e:
+        logger.warning("speak: edge-tts failed (%s), falling back to local Parler-TTS", e)
+
+    # Fallback: local Parler-TTS.
     description_ids = tts_description_tokenizer(req.description, return_tensors="pt").to(DEVICE)
     prompt_ids = tts_tokenizer(text, return_tensors="pt").to(DEVICE)
 
@@ -178,7 +253,7 @@ def speak(req: SpeakRequest):
     sf.write(buffer, audio_arr, tts_model.config.sampling_rate, format="WAV")
     buffer.seek(0)
     logger.info(
-        "speak: done in %.2fs, %.1fs of audio. GPU memory after: %s",
+        "speak: done via local Parler-TTS in %.2fs, %.1fs of audio. GPU memory after: %s",
         time.monotonic() - start, len(audio_arr) / tts_model.config.sampling_rate, _gpu_mem_gb(),
     )
     return StreamingResponse(buffer, media_type="audio/wav")
