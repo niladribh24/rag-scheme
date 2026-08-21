@@ -4,12 +4,23 @@ Multilingual voice layer for Setu: speech-to-text (ASR) via **SraVaani-1.0** (II
 
 ## Status
 
-In progress. What exists today:
-- `test_transcribe.py` — verified SraVaani transcribes audio correctly.
-- `test_tts.py` — Indic Parler-TTS synthesis test.
+`main.py` runs a working, hardened FastAPI service with `/transcribe` and `/speak`. Not yet wired into `api.py` or the frontend.
+
+- `main.py` — the service (`/health`, `/transcribe`, `/speak`).
+- `test_transcribe.py` / `test_tts.py` — standalone one-off sanity scripts (predate `main.py`).
 - `download_models.py` — one-time model download/cache script.
 
-Not yet built: the actual FastAPI service (`/transcribe`, `/speak` endpoints) and its wiring into `api.py` / the frontend.
+### Endpoints
+
+- `POST /transcribe` — multipart form upload, field name `audio`. Any format `ffmpeg` can decode (webm/opus from browser `MediaRecorder`, wav, mp3, ogg, ...) is normalized to 16kHz mono WAV before transcription. Returns `{"text": "..."}`.
+- `POST /speak` — JSON body `{"text": "...", "description": "..."}` (`description` optional, controls voice characteristics per Parler-TTS's prompt format). Returns a `audio/wav` stream. Language is inferred automatically from the script of `text` — no language field needed.
+- `GET /health` — `{"status": "ok", "device": "cuda:0" | "cpu"}`.
+
+Both endpoints validate input (empty/oversized uploads, empty/oversized text, undecodable audio) and return proper 4xx errors rather than crashing. GPU inference is serialized behind a lock, since both models share one GPU with limited VRAM and concurrent `.generate()` calls can race for memory.
+
+### System requirement: ffmpeg
+
+`/transcribe` shells out to `ffmpeg` to normalize incoming audio — this is a **system binary**, not a pip package. Install it via your OS package manager (e.g. `sudo dnf install ffmpeg` / `sudo apt install ffmpeg`) before running the service.
 
 ## Models
 
