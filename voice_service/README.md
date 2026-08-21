@@ -26,6 +26,24 @@ Run alongside `api.py` (`uvicorn api:app --reload`, port 8000). `api.py` looks f
 
 Both endpoints validate input (empty/oversized uploads, empty/oversized text, undecodable audio) and return proper 4xx errors rather than crashing. GPU inference is serialized behind a lock, since both models share one GPU with limited VRAM and concurrent `.generate()` calls can race for memory.
 
+### VRAM and CUDA OOM handling
+
+Both models load in `float16` on CUDA (`float32` on CPU, where fp16 isn't well supported) — this was a real fix, not a preemptive one: a browser-tested long, markdown-table-formatted RAG answer triggered a genuine `torch.OutOfMemoryError` under `float32` on an 8GB GPU. Measured effect of the fp16 switch:
+
+| | float32 (before) | float16 (after) |
+|---|---|---|
+| SraVaani static footprint | ~1.85GB | ~0.94GB |
+| Indic Parler-TTS static footprint | ~3.83GB | ~1.90GB |
+| Combined baseline | ~5.68GB | ~1.90GB |
+
+Transcription output is byte-identical between dtypes (verified). `/speak` and `/transcribe` also call `torch.cuda.empty_cache()` after each generation — PyTorch's caching allocator doesn't return freed blocks to the OS on its own, so without this, `reserved` memory only ratchets upward across requests within a long-running process; verified 5 consecutive near-max-length (1000 char) `/speak` calls all return to the same ~1.97GB reserved baseline afterward, with zero creep. Both endpoints also catch `torch.cuda.OutOfMemoryError` explicitly, returning a clean `503` (with an `empty_cache()` recovery attempt) instead of an unhandled crash.
+
+**Known latency:** TTS generation for text near the 1000-char cap takes ~20-27s (autoregressive, roughly real-time relative to output audio length). The frontend's pipeline animation covers the RAG portion of the wait, but the `/speak` call itself has no loading indicator yet — worth adding.
+
+### Logging
+
+The service logs to stdout (`logging`, not `print`) — startup model-load timing and GPU memory, and per-request text/audio length, duration, and GPU memory before/after. Useful for correlating a failure with exactly what request triggered it.
+
 ### System requirement: ffmpeg
 
 `/transcribe` shells out to `ffmpeg` to normalize incoming audio — this is a **system binary**, not a pip package. Install it via your OS package manager (e.g. `sudo dnf install ffmpeg` / `sudo apt install ffmpeg`) before running the service.

@@ -238,7 +238,14 @@ main{
 }
 
 /* ---------- Answer text formatting ---------- */
-.answer-text{white-space:pre-wrap;word-wrap:break-word;}
+.answer-text{word-wrap:break-word;}
+.answer-text p{margin:0 0 10px;}
+.answer-text p:last-child{margin-bottom:0;}
+.answer-text strong{font-weight:600;}
+.answer-text code{background:var(--paper-alt);border-radius:4px;padding:1px 5px;font-family:'IBM Plex Mono',monospace;font-size:0.9em;}
+.md-table{border-collapse:collapse;width:100%;margin:0 0 10px;font-size:0.95em;}
+.md-table th,.md-table td{border:1px solid var(--border);padding:6px 10px;text-align:left;}
+.md-table th{background:var(--paper-alt);font-weight:600;}
 
 /* ---------- Side panel ---------- */
 .side{padding:26px 24px;}
@@ -461,6 +468,46 @@ function svgBot(){return '<svg viewBox="0 0 24 24" fill="none"><circle cx="12" c
 
 function escapeHtml(s){const d=document.createElement('div');d.textContent=s;return d.innerHTML;}
 
+/* ============ minimal markdown renderer (no external libs) ============ */
+// Escapes first, then applies our own trusted markup on top — never lets
+// model output inject raw HTML, only the small set of tags we add ourselves.
+function inlineMd(raw){
+  let s = escapeHtml(raw);
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+  s = s.replace(/(^|[^*])\*(?!\*)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
+  return s;
+}
+
+const TABLE_SEPARATOR_RE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+
+function renderMarkdown(text){
+  const lines = text.split('\n');
+  let html = '';
+  let i = 0;
+  while(i < lines.length){
+    const line = lines[i];
+    if(line.includes('|') && lines[i+1] && TABLE_SEPARATOR_RE.test(lines[i+1])){
+      const headerCells = line.split('|').map(c=>c.trim()).filter(c=>c.length);
+      html += '<table class="md-table"><thead><tr>' +
+        headerCells.map(c=>`<th>${inlineMd(c)}</th>`).join('') + '</tr></thead><tbody>';
+      i += 2;
+      while(i < lines.length && lines[i].includes('|')){
+        const rowCells = lines[i].split('|').map(c=>c.trim()).filter(c=>c.length);
+        html += '<tr>' + rowCells.map(c=>`<td>${inlineMd(c)}</td>`).join('') + '</tr>';
+        i++;
+      }
+      html += '</tbody></table>';
+      continue;
+    }
+    if(line.trim() !== ''){
+      html += `<p>${inlineMd(line)}</p>`;
+    }
+    i++;
+  }
+  return html;
+}
+
 function addUserMsg(text){
   const row = document.createElement('div');
   row.className='msg-row user';
@@ -479,7 +526,7 @@ function addBotWelcome(){
 function addBotMessage(text, audioBlob){
   const row = document.createElement('div');
   row.className='msg-row bot';
-  row.innerHTML = `<div class="avatar">${svgBot()}</div><div class="bubble"><div class="answer-text">${escapeHtml(text)}</div></div>`;
+  row.innerHTML = `<div class="avatar">${svgBot()}</div><div class="bubble"><div class="answer-text">${renderMarkdown(text)}</div></div>`;
   chatScroll.appendChild(row);
   chatScroll.scrollTop = chatScroll.scrollHeight;
 
