@@ -190,6 +190,22 @@ main{
 }
 .send-btn:hover:not(:disabled){background:var(--chakra);}
 .send-btn:disabled{opacity:.5;cursor:not-allowed;}
+.mic-btn{
+  background:var(--card);color:var(--ink-soft);border:1px solid var(--border);border-radius:12px;
+  width:44px;flex-shrink:0;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .2s, color .2s, opacity .2s;
+}
+.mic-btn:hover:not(:disabled){border-color:var(--chakra);color:var(--chakra);}
+.mic-btn:disabled{opacity:.5;cursor:not-allowed;}
+.mic-btn.recording{background:var(--red);color:#fff;border-color:var(--red);animation:mic-pulse 1.2s ease-in-out infinite;}
+@keyframes mic-pulse{0%,100%{box-shadow:0 0 0 0 rgba(156,59,59,.4);}50%{box-shadow:0 0 0 8px rgba(156,59,59,0);}}
+.audio-replay{
+  display:inline-flex;align-items:center;gap:6px;margin-top:8px;
+  background:none;border:1px solid var(--border);border-radius:8px;
+  padding:4px 10px;font-size:12.5px;color:var(--ink-soft);cursor:pointer;
+}
+.audio-replay:hover{border-color:var(--chakra);color:var(--chakra);}
 
 .chips-row{padding:10px 20px 4px;display:flex;flex-wrap:wrap;gap:8px;border-top:1px solid var(--border);}
 .example-chip{
@@ -280,6 +296,7 @@ footer.note{
     <button class="lang-btn active" data-lang="en">English</button>
     <button class="lang-btn" data-lang="hi">हिंदी</button>
     <button class="lang-btn" data-lang="kn">ಕನ್ನಡ</button>
+    <button class="lang-btn" data-lang="te">తెలుగు</button>
   </div>
 </header>
 
@@ -289,6 +306,9 @@ footer.note{
     <div class="chips-row" id="chipsRow"></div>
     <div class="composer">
       <input type="text" id="queryInput" placeholder="Type your situation in any language…">
+      <button class="mic-btn" id="micBtn" title="Ask by voice">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 15a3 3 0 003-3V6a3 3 0 10-6 0v6a3 3 0 003 3z" stroke="currentColor" stroke-width="2"/><path d="M19 11a7 7 0 01-14 0M12 18v3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
       <button class="send-btn" id="sendBtn">
         <span id="sendLabel">Ask</span>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 12h16M14 6l6 6-6 6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -303,7 +323,7 @@ footer.note{
     <h3 id="statsTitle">Demo knowledge base</h3>
     <div class="stat-grid">
       <div class="stat-box"><div class="num">10</div><div class="lbl" id="statSchemes">schemes indexed</div></div>
-      <div class="stat-box"><div class="num">3</div><div class="lbl" id="statLangs">languages supported</div></div>
+      <div class="stat-box"><div class="num">4</div><div class="lbl" id="statLangs">languages supported</div></div>
     </div>
 
     <h3 id="corpusTitle">Sample sources in the index</h3>
@@ -396,6 +416,33 @@ const T = {
       ["ನಿಮ್ಮ ಭಾಷೆಯಲ್ಲಿ ವಿವರಿಸಿ","ಕಾರಣ ಮತ್ತು ನಿಖರವಾದ ಮೂಲ ಷರತ್ತಿನೊಂದಿಗೆ ಉತ್ತರಿಸುತ್ತದೆ."]
     ],
     corpus:[["PM-KISAN ಮಾರ್ಗಸೂಚಿಗಳು","ಕೃಷಿ ಸಚಿವಾಲಯ"],["PMFBY ಕಾರ್ಯಾಚರಣೆ ಮಾರ್ಗಸೂಚಿಗಳು","ಕೃಷಿ ಸಚಿವಾಲಯ"],["ಆಯುಷ್ಮಾನ್ ಭಾರತ್ PM-JAY ಕೈಪಿಡಿ","ಆರೋಗ್ಯ ಸಚಿವಾಲಯ"],["MUDRA ಯೋಜನೆ ಮಾರ್ಗಸೂಚಿಗಳು","MSME ಸಚಿವಾಲಯ"],["ಕರ್ನಾಟಕ ಗೃಹ ಲಕ್ಷ್ಮಿ GO","ಕರ್ನಾಟಕ ಸರ್ಕಾರ"]]
+  },
+  te:{
+    tagline:"పౌరులను ప్రభుత్వ పథకాలతో అనుసంధానించే AI",
+    archTitle:"సేతు మీకు ఎలా సమాధానం ఇస్తుంది",
+    statSchemes:"పథకాలు చేర్చబడ్డాయి", statLangs:"భాషలు మద్దతు ఉంది",
+    corpusTitle:"డేటాబేస్‌లోని కొన్ని మూలాలు",
+    sendLabel:"అడగండి",
+    placeholder:"మీ పరిస్థితిని ఏ భాషలోనైనా టైప్ చేయండి…",
+    welcome:"నమస్తే. మీ పరిస్థితి గురించి చెప్పండి — మీ పని, ఆదాయం, కుటుంబం, లేదా మీకు ఎలాంటి సహాయం కావాలో — మీరు ఏ ప్రభుత్వ పథకాలకు అర్హులో నేను తనిఖీ చేస్తాను.",
+    thinking:"ఆలోచిస్తున్నాను…",
+    errorOffline:"నేను సర్వర్‌ను చేరుకోలేకపోయాను. బ్యాకెండ్ నడుస్తుందని నిర్ధారించుకోండి (uvicorn api:app) మరియు మళ్లీ ప్రయత్నించండి.",
+    errorGeneric:"మీ ప్రశ్నను ప్రాసెస్ చేస్తున్నప్పుడు ఏదో తప్పు జరిగింది. దయచేసి మళ్లీ ప్రయత్నించండి.",
+    chips:[
+      "నేను కర్ణాటకలో రైతును, వార్షిక ఆదాయం ₹2 లక్షల కంటే తక్కువ, పంట బీమా ఎలా పొందాలి?",
+      "నా కూతురికి 10 సంవత్సరాలు, ఆమె భవిష్యత్తు కోసం పొదుపు ప్రారంభించాలనుకుంటున్నాను",
+      "నాకు చిన్న టైలరింగ్ షాప్ ఉంది, విస్తరించడానికి రుణం కావాలి",
+      "నేను రైతును, వార్షికంగా ₹20 లక్షలు సంపాదిస్తాను, నేను PM-KISAN కి అర్హుడినా?"
+    ],
+    disclaimer:"స్మార్ట్ ఇండియా హ్యాకథాన్ కోసం డెమో ప్రోటోటైప్ — పథక డేటా ప్రదర్శన కోసం సరళీకరించబడింది. దరఖాస్తు చేసే ముందు అధికారిక పోర్టల్‌లో అర్హతను నిర్ధారించుకోండి.",
+    archSteps:[
+      ["భాషను గుర్తించండి","మీరు 22+ భారతీయ భాషల్లో దేనిలో టైప్ చేస్తున్నారో లేదా మాట్లాడుతున్నారో గుర్తిస్తుంది."],
+      ["పరిస్థితిని అర్థం చేసుకోండి","మీ వాక్యం నుండి వృత్తి, ఆదాయం, వయస్సు, లింగం మరియు అవసరాన్ని సంగ్రహిస్తుంది."],
+      ["పథకాలను వెతకండి","పథక నాలెడ్జ్ బేస్ (RAG)లో సంబంధిత సరిపోలికల కోసం శోధిస్తుంది."],
+      ["అర్హతను తనిఖీ చేయండి","ఊహ కాదు — ప్రతి అభ్యర్థి పథకం యొక్క వాస్తవ ప్రమాణాలను నడుపుతుంది."],
+      ["మీ భాషలో వివరించండి","కారణం మరియు ఖచ్చితమైన మూల నిబంధనతో సమాధానం ఇస్తుంది."]
+    ],
+    corpus:[["PM-KISAN మార్గదర్శకాలు","వ్యవసాయ మంత్రిత్వ శాఖ"],["PMFBY కార్యాచరణ మార్గదర్శకాలు","వ్యవసాయ మంత్రిత్వ శాఖ"],["ఆయుష్మాన్ భారత్ PM-JAY మాన్యువల్","ఆరోగ్య మంత్రిత్వ శాఖ"],["MUDRA పథక మార్గదర్శకాలు","MSME మంత్రిత్వ శాఖ"],["కర్ణాటక గృహ లక్ష్మి GO","కర్ణాటక ప్రభుత్వం"]]
   }
 };
 
@@ -429,12 +476,24 @@ function addBotWelcome(){
   chatScroll.appendChild(row);
 }
 
-function addBotMessage(text){
+function addBotMessage(text, audioBlob){
   const row = document.createElement('div');
   row.className='msg-row bot';
   row.innerHTML = `<div class="avatar">${svgBot()}</div><div class="bubble"><div class="answer-text">${escapeHtml(text)}</div></div>`;
   chatScroll.appendChild(row);
   chatScroll.scrollTop = chatScroll.scrollHeight;
+
+  if(audioBlob){
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audioEl = new Audio(audioUrl);
+    const bubble = row.querySelector('.bubble');
+    const replayBtn = document.createElement('button');
+    replayBtn.className = 'audio-replay';
+    replayBtn.innerHTML = '&#9658; Play answer';
+    replayBtn.onclick = () => audioEl.play();
+    bubble.appendChild(replayBtn);
+    audioEl.play().catch(()=>{}); // autoplay can be blocked by the browser; replay button still works
+  }
 }
 
 function addThinkingIndicator(){
@@ -511,8 +570,29 @@ async function askBackend(question){
   return data.answer;
 }
 
+async function transcribeAudio(blob){
+  const form = new FormData();
+  form.append('audio', blob, 'query.webm');
+  const response = await fetch(`${API_BASE}/transcribe`, { method: 'POST', body: form });
+  if(!response.ok){
+    throw new Error(`Transcription failed: ${response.status}`);
+  }
+  const data = await response.json();
+  return data.text;
+}
+
+async function speakText(text){
+  const response = await fetch(`${API_BASE}/speak`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ text })
+  });
+  if(!response.ok) return null; // voice reply is a bonus, not essential — fail silently
+  return response.blob();
+}
+
 /* ============ main query handler ============ */
-async function handleQuery(query){
+async function handleQuery(query, opts={}){
   if(isProcessing) return;
 
   const t = T[currentLang];
@@ -532,7 +612,11 @@ async function handleQuery(query){
 
     // Remove thinking indicator, show the real answer
     removeThinkingIndicator();
-    addBotMessage(answer);
+
+    // Only synthesize speech when the question itself came in by voice —
+    // typed questions get a text-only reply so audio doesn't play unexpectedly.
+    const audioBlob = opts.viaVoice ? await speakText(answer) : null;
+    addBotMessage(answer, audioBlob);
 
   } catch(err) {
     removeThinkingIndicator();
@@ -602,6 +686,63 @@ document.getElementById('queryInput').addEventListener('keydown', (e)=>{
     const val = e.target.value.trim();
     if(val && !isProcessing) handleQuery(val);
   }
+});
+
+/* ============ voice input (mic) ============ */
+const micBtn = document.getElementById('micBtn');
+let mediaRecorder = null;
+let isRecording = false;
+
+async function startRecording(){
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  const chunks = [];
+  mediaRecorder = new MediaRecorder(stream);
+  mediaRecorder.ondataavailable = (e) => { if(e.data.size > 0) chunks.push(e.data); };
+  mediaRecorder.onstop = () => {
+    stream.getTracks().forEach(track => track.stop()); // release the mic indicator
+    const blob = new Blob(chunks, { type: mediaRecorder.mimeType });
+    handleVoiceQuery(blob);
+  };
+  mediaRecorder.start();
+  isRecording = true;
+  micBtn.classList.add('recording');
+}
+
+function stopRecording(){
+  if(mediaRecorder && isRecording){
+    mediaRecorder.stop();
+    isRecording = false;
+    micBtn.classList.remove('recording');
+  }
+}
+
+async function handleVoiceQuery(blob){
+  micBtn.disabled = true;
+  try {
+    const text = await transcribeAudio(blob);
+    if(text && text.trim()){
+      await handleQuery(text, { viaVoice: true });
+    } else {
+      addErrorMessage(T[currentLang].errorGeneric);
+    }
+  } catch(err) {
+    addErrorMessage(T[currentLang].errorOffline);
+    console.error('Setu transcription error:', err);
+  } finally {
+    micBtn.disabled = false;
+  }
+}
+
+micBtn.addEventListener('click', () => {
+  if(isRecording){
+    stopRecording();
+    return;
+  }
+  if(isProcessing) return;
+  startRecording().catch(err => {
+    console.error('Mic access error:', err);
+    addErrorMessage('Could not access the microphone. Please check browser permissions.');
+  });
 });
 
 /* ============ init ============ */
