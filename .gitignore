@@ -1,6 +1,7 @@
 # Environments
 venv/
 env/
+.venv/
 .env
 
 # Byte-compiled / optimized / DLL files
@@ -13,3 +14,6 @@ __pycache__/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Generated test audio
+voice_service/test_samples/
