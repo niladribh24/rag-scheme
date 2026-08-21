@@ -51,11 +51,12 @@ def ask(q: Query):
     retrieved_text = "\n\n".join(results["documents"][0])
     response = groq_client.chat.completions.create(
         model="openai/gpt-oss-20b",
-        max_tokens=300,
+        max_tokens=1200,
         messages=[{
             "role": "user",
-            "content": f"""You are a helpful assistant for a government scheme navigator. 
+            "content": f"""You are a helpful assistant for a government scheme navigator.
 Answer the user's question using ONLY the information below. Be clear and conversational.
+Respond in the same language the user's question is written in.
 
 CONTEXT:
 {retrieved_text}

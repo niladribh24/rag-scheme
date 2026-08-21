@@ -667,10 +667,16 @@ async function handleQuery(query, opts={}){
     // Remove thinking indicator, show the real answer
     removeThinkingIndicator();
 
-    // Only synthesize speech when the question itself came in by voice —
-    // typed questions get a text-only reply so audio doesn't play unexpectedly.
-    const audioBlob = opts.viaVoice ? await speakText(answer) : null;
-    addBotMessage(answer, audioBlob);
+    if(!answer || !answer.trim()){
+      // The backend returned 200 with no usable content (seen with Groq
+      // occasionally) — show something rather than a silent blank bubble.
+      addErrorMessage(t.errorGeneric);
+    } else {
+      // Only synthesize speech when the question itself came in by voice —
+      // typed questions get a text-only reply so audio doesn't play unexpectedly.
+      const audioBlob = opts.viaVoice ? await speakText(answer) : null;
+      addBotMessage(answer, audioBlob);
+    }
 
   } catch(err) {
     removeThinkingIndicator();
