@@ -5,3 +5,4 @@ sentence-transformers
 groq
 PyMuPDF
 python-dotenv
+httpx
