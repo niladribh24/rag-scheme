@@ -3,7 +3,7 @@ from chromadb.utils import embedding_functions
 
 client = chromadb.Client()
 embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="all-MiniLM-L6-v2"
+    model_name="intfloat/multilingual-e5-large"
 )
 
 # NOTE: this creates a fresh empty DB each time (in-memory), 

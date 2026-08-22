@@ -19,7 +19,7 @@ print("Example chunk:\n", raw_chunks[0][:300])
 # Set up ChromaDB with a free local embedding model
 client = chromadb.Client()
 embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="all-MiniLM-L6-v2"
+    model_name="intfloat/multilingual-e5-large"
 )
 
 collection = client.create_collection(

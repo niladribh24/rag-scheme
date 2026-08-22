@@ -7,7 +7,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 client_db = chromadb.Client()
 embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="all-MiniLM-L6-v2"
+    model_name="intfloat/multilingual-e5-large"
 )
 files = [BASE_DIR / "data" / "pmmy_categories.txt", BASE_DIR / "data" / "pmmy_myscheme.txt"]
 all_text = ""
