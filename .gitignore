@@ -17,3 +17,9 @@ Thumbs.db
 
 # Generated test audio
 voice_service/test_samples/
+
+# Persisted vector store
+chroma_db/
+
+*.env
+venv/

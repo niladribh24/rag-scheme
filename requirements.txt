@@ -3,6 +3,9 @@ uvicorn
 chromadb
 sentence-transformers
 groq
+langchain
+langchain-groq
+langgraph
 PyMuPDF
 python-dotenv
 httpx

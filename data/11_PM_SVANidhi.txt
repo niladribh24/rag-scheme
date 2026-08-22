@@ -1,0 +1,149 @@
+PM SVANidhi (Pradhan Mantri Street Vendor's AtmaNirbhar Nidhi)
+Level: National
+Category: Street vendor micro-credit
+Key Benefit: ₹10K→20K→50K tranches, 7% interest subsidy
+
+===================================================
+ELIGIBILITY CRITERIA
+===================================================
+
+Eligibility Criteria of Beneficiaries
+
+The target beneficiaries of the scheme are street vendors vending in various city-regions. The State/ UTs may adopt suitable methodology for identifying eligible vendors to ensure comprehensive coverage.
+
+* In statutory towns, the Certificate of Vending (CoV)/Identity Card/Letter of Recommendation (LoR) to the street vendors will be issued by TVC/ ULBs.
+* For census towns and peri urban areas, the Letter of Recommendation (LoR) to the street vendors will be issued by Block Development Offices after due verification.
+* The verification and issuance of LoR shall be completed within 15 days of the submission of application.
+
+Criteria for Identifying Eligible Street Vendors (census towns and peri urban areas)
+
+* 'Street Vendor' shall be engaged in vending activity aligning to the definition mentioned in Street Vendors (Protection of Livelihood and Regulation of Street Vending) Act, 2014 - a person engaged in vending of articles, goods, wares, food items or merchandise of everyday use or offering services to the general public, in a street, lane, side walk, footpath, pavement, public park or any other public place or private area, from a temporary built-up structure or by moving from place to place, and includes hawker, peddler, squatter, and all other synonymous terms which may be local or region specific.
+* The vendor may be engaged in either seasonal or year-round vending activities.
+* The vendor may operate as a mobile or stationary vendor.
+* The vendor should be vending in the respective census town or peri-urban area.
+
+===================================================
+SCHEME COMPONENTS
+===================================================
+
+5.1 Working Capital Term Loans
+
+SVs will be eligible for collateral free working capital term loan in three tranches:
+1. 1st tranche loan of up to ₹15,000 to be repaid in 12 months.
+2. 2nd tranche loan of up to ₹25,000 to be repaid in 18 months.
+3. 3rd tranche loan of up to ₹50,000 to be repaid in 36 months.
+
+Upon timely or early repayment of a tranche, vendors will be eligible for the next tranche of working capital term loans, with the enhanced limit. For repayment before the scheduled date, no prepayment penalty will be charged from the vendor.
+
+5.1.1 Rate of Interest
+
+* In case of Scheduled Commercial Banks, Cooperative Banks & SHG Banks, the rates will be as per their prevailing rates of interest.
+* In case of NBFC, NBFC-MFIs etc., interest rates will be as per RBI guidelines for respective lender category.
+* In respect of MFIs (non NBFC) & other lender categories not covered under the RBI guidelines, interest rates under the scheme would be applicable as per the extant RBI guidelines for NBFC-MFIs.
+
+5.1.2 Interest Subsidy
+
+* Vendors availing loan under the scheme are eligible for an interest subsidy at 7% per annum.
+* The interest subsidy amount will be credited into the borrower's account quarterly.
+* Lending Institutes will submit quarterly claims for interest subsidy for quarters ending June 30, September 30, December 31 and March 31 during each financial year.
+* Subsidy will only be considered in respect of accounts of borrowers which are standard (non-NPA as per extant RBI guidelines) on respective claim dates, and only for those months during which the account has remained standard in the concerned quarter.
+* The interest subsidy is available up to March 31, 2033.
+
+5.1.3 Credit Guarantee
+
+The Scheme has a provision of Graded Guarantee Cover provided to Lending Institutions for the loans sanctioned, administered by Credit Guarantee Fund Trust for Micro and Small Enterprises (CGTMSE), operated on a portfolio basis:
+* 31.87% for 1st tranche loan
+* 8.25% for 2nd tranche loan
+* 6% for 3rd tranche loan
+
+All loans given by each lending institution under the scheme will be considered for coverage under the guarantee. Periodicity of filing of claims by lending institutions will be quarterly. All participating lending institutions shall be eligible to avail this guarantee cover without any charges.
+
+5.2 Credit Card
+
+* A UPI linked RuPay Credit Card will be available as an additional facility for PM SVANidhi beneficiaries who have successfully repaid their 2nd tranche loan and are eligible for the 3rd tranche loan.
+* This is a domestic card; initial credit limit ₹10,000, gradually increased to ₹30,000; valid for a period of 5 years.
+
+5.2.1 Credit Guarantee for Credit Card
+
+* Guarantee against default on the credit card is provided through CGTMSE.
+* Guarantee on the Card will be available for five years from the date of issuance of the card or card validity period, whichever is earlier.
+* Guarantee extended up to an NPA level of 20% of the approved limit on all cards issued by the card issuer at the time of claim submission during the scheme period.
+* Risk coverage restricted to 75% of the outstanding amount, subject to a maximum outstanding of ₹30,000 or the approved limit, whichever is lower, per card.
+* At renewal (after initial validity period), the issuer can take an independent business call based on the credit history of the beneficiary.
+
+5.3 Digital Adoption
+
+The scheme incentivizes digital transactions done by beneficiaries through cashback facility, supported by "Digi Saathi/ Sakhi", network of Lending Institutions and Digital Payment Aggregators (DPAs) like BHIM, India Post Payment Bank, Paytm, PhonePe, BharatPe etc.
+
+Incentives:
+a. Any inward and outward digital transaction - up to ₹100 per month (₹1 per transaction) with maximum cashback of ₹1,200 per year in each tranche.
+b. Wholesale digital purchases - up to ₹100 per quarter (@₹20 per transaction for 5 such transactions) for 4 quarters for conducting digital transactions on wholesale purchases of at least ₹2,000, with a maximum cashback of ₹400 per year.
+
+5.4 'SVANidhi se Samriddhi' (SSS)
+
+Aims to strengthen the safety net for beneficiaries' families, enhancing their living conditions, by facilitating linkages of beneficiary families via socio-economic profiling to various existing Government of India welfare schemes, promoting their holistic development and socio-economic upliftment.
+
+5.5 Support to Urban Street Vendors (SUSV)
+
+Aims to provide comprehensive assistance to street vendors as per SV Act 2014, enhancing livelihood opportunities and ensuring socio-economic inclusion, through:
+* Identification of street vendors through survey, issuance of certificate of vending (CoV) & identity cards etc.
+* Reform incentives for notifying city street vending plans.
+* Innovative projects.
+
+5.6 Parichay Boards
+
+'SVANidhi Beneficiary Parichay Board' (SBPB) will be provided to PM SVANidhi beneficiaries, which can be displayed at their vending place, to improve visibility and provide a sense of identity.
+
+5.7 Capacity Building & Research
+
+Capacity building and training for street vendors focusing on entrepreneurship, financial literacy, digital literacy, packaging etc., in convergence with capacity building programs implemented by various Ministries/Departments in GOI. Special training to street food vendor beneficiaries on hygiene and food safety in convergence with FSSAI. Research studies and impact assessments through research/academic institutes to study scheme effectiveness and sustainability.
+
+===================================================
+IMPLEMENTING AGENCIES
+===================================================
+
+* Small Industries Development Bank of India (SIDBI) is the implementation agency for the Ministry of Housing and Urban Affairs for scheme administration, leveraging the network of lending institutions including SCBs, RRBs, SFBs, Cooperative Banks, NBFCs & MFIs, Digital Payment Aggregators (DPAs), and Credit Card issuers.
+* Indian Bank, through its PAiSA portal, supports LIs in submitting interest subsidy claims and facilitates the direct transfer of subsidy amounts to beneficiaries' accounts.
+
+===================================================
+PROCEDURE FOR APPLYING TERM 2 LOAN BY STREET VENDORS ON PM SVANidhi PORTAL
+===================================================
+
+SECOND TERM LOAN AUTOMATIC GENERATION
+
+Step-1: After login on PMS portal, the Street Vendor will be able to see the term 1 loan application details.
+
+Step-2: Once the term 1 loan PMS Application is marked 'Fully Repaid' on the PMS portal by lender, Term 2 loan applications will get Auto Generated.
+
+Step-3: Now Street Vendor will be able to see the term 2 loan application details.
+
+PROCEDURE FOR SECOND TERM LOAN APPLICATION WITH CLOSURE STATEMENT
+
+Step-1: Open http://pmsvanidhi.mohua.gov.in and click on the 'Apply for 20k'.
+
+Step-2: Select State.
+Step-2(i): After Other States selection, enter the AADHAAR Number, Mobile Number and request for OTP.
+Step-2(ii): For Assam/Meghalaya, enter only Mobile Number and request for OTP.
+
+Step-3: Only those applicants whose Aadhaar is linked to Mobile Number can apply for Term 2 Loan. If Street Vendor Mobile Number and Aadhaar is not linked, it will show error message: 'Your Aadhaar is not linked with Mobile Number. Kindly link your Aadhaar with Mobile Number to proceed further'.
+Note - Post Linking of Aadhaar, Street Vendors need to complete re-KYC on PMS portal.
+
+Step-4: If Street Vendor Mobile Number and Aadhaar is linked, then enter OTP input field will be available. Enter the OTP received on registered Mobile Number and click on 'VERIFY OTP' button.
+
+Step-5: Post Verification of OTP, the PMS Application Number Verification window will open.
+
+Step-6: Enter the Term 1 Loan PMS Application Number and click on the 'Verify' button. After verification, the user will be successfully moved to Loan Application form.
+
+Step-7: Bank details will be shown where loan application will be processed.
+
+Step-8: Enter the Loan Amount required, upload the Closure Statement document, tick the declarations and submit the application.
+
+Declaration and Authorization includes:
+A. Certification that all information furnished is true, correct and complete, and has not been applied to any other lending institution under the PM SVANidhi scheme.
+B. Consent for application for loans in remaining cycles - after full repayment of 2nd loan, maximum loan amount will increase to ₹50,000/- in the 3rd cycle, eligible only after full repayment of current loan and submission of digital consent for the 3rd loan.
+C. Minimum repayment period of 9 months is required for the 2nd loan to be eligible for the 3rd loan. If loan is fully repaid before 9 months, eligibility for the 3rd loan is only after the stipulated period of 9 months from the date of disbursement of the 2nd loan.
+D. Consent to authenticate Aadhaar number, share the same with other Ministries/Departments under Government of India or State Government, carry out e-KYC and access credit history & credit score from credit bureau by lenders and their authorized agents.
+
+Step-9: After that, message will be displayed as 'Application Submitted'. Note the PMS Application Number for future reference.
+
+Step-10: Applicant can view and download the PMS application.
