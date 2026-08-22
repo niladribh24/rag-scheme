@@ -1,37 +1,18 @@
-import chromadb
-from chromadb.utils import embedding_functions
+import sys
+from pathlib import Path
 
-client = chromadb.Client()
-embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-    model_name="all-MiniLM-L6-v2"
-)
+# Allow imports from the project root
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-# NOTE: this creates a fresh empty DB each time (in-memory), 
-# so we need to rebuild the index in this same script for now
-files = ["pmmy_categories.txt", "pmmy_myscheme.txt"]
-all_text = ""
-for f in files:
-    with open(f, "r", encoding="utf-8") as file:
-        all_text += file.read() + "\n\n"
+from rag_core import build_vector_store, _embed
 
-raw_chunks = [c.strip() for c in all_text.split("\n\n") if len(c.strip()) > 50]
-
-collection = client.create_collection(
-    name="mudra_scheme_docs",
-    embedding_function=embedding_fn
-)
-collection.add(
-    documents=raw_chunks,
-    ids=[f"chunk_{i}" for i in range(len(raw_chunks))]
-)
+collection = build_vector_store()
 
 # Now the actual test: ask a question
 query = "I need a loan of 3 lakh rupees for my small shop, which category do I fall under?"
 
-results = collection.query(
-    query_texts=[query],
-    n_results=2
-)
+query_embedding = _embed([query], "query: ")
+results = collection.query(query_embeddings=query_embedding, n_results=3)
 
 print("QUERY:", query)
 print("\nTOP MATCHING CHUNKS:\n")

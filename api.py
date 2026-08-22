@@ -6,9 +6,8 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
-import chromadb
-from chromadb.utils import embedding_functions
 from groq import Groq
+from rag_core import build_vector_store, query_vector_store
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
@@ -19,16 +18,7 @@ app = FastAPI(title="Setu — AI Scheme Navigator API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # Build index once at startup
-client_db = chromadb.Client()
-embedding_fn = embedding_functions.SentenceTransformerEmbeddingFunction(model_name="all-MiniLM-L6-v2")
-files = [BASE_DIR / "data" / "pmmy_categories.txt", BASE_DIR / "data" / "pmmy_myscheme.txt"]
-all_text = ""
-for f in files:
-    with open(f, "r", encoding="utf-8") as file:
-        all_text += file.read() + "\n\n"
-raw_chunks = [c.strip() for c in all_text.split("\n\n") if len(c.strip()) > 50]
-collection = client_db.create_collection(name="mudra_scheme_docs", embedding_function=embedding_fn)
-collection.add(documents=raw_chunks, ids=[f"chunk_{i}" for i in range(len(raw_chunks))])
+collection = build_vector_store()
 
 groq_client = Groq()
 
@@ -43,19 +33,18 @@ def serve_frontend():
 @app.get("/health")
 def health_check():
     """Health check endpoint."""
-    return {"status": "ok", "chunks_indexed": len(raw_chunks)}
+    return {"status": "ok", "chunks_indexed": collection.count()}
 
 @app.post("/ask")
 def ask(q: Query):
-    results = collection.query(query_texts=[q.question], n_results=2)
-    retrieved_text = "\n\n".join(results["documents"][0])
+    retrieved_text = query_vector_store(collection, q.question)
     response = groq_client.chat.completions.create(
         model="openai/gpt-oss-20b",
         max_tokens=300,
         messages=[{
             "role": "user",
             "content": f"""You are a helpful assistant for a government scheme navigator. 
-Answer the user's question using ONLY the information below. Be clear and conversational.
+Answer using ONLY relevant information below — ignore any chunks that don't actually relate to the question. Be clear and conversational.
 
 CONTEXT:
 {retrieved_text}
