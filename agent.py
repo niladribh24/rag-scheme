@@ -8,13 +8,14 @@ from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, END
 
-from rag_tools import search_govt_schemes
+from rag_tools import search_govt_schemes, detect_scheme, _collection
+from rag_core import query_vector_store
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
 # ── LLM (same model as api.py / generate_answer.py) ──────────────────────
-llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0, max_tokens=400)
+llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0, max_tokens=1024)
 
 MAX_RETRIES = 2
 
@@ -53,10 +54,26 @@ User question: {question}"""
 
 # ── Node: retrieve ────────────────────────────────────────────────────────
 def retrieve(state: AgentState) -> AgentState:
-    """Call search_govt_schemes with the current query."""
+    """Call query_vector_store with optional scheme-name filtering."""
     query = state.get("rewritten_query") or state["question"]
+    schemes = detect_scheme(state["question"])
+
+    if len(schemes) == 1:
+        scheme_filter = schemes[0]
+        n_results = 3
+        print(f"  [retrieve] single scheme filter: '{scheme_filter}'")
+    elif len(schemes) >= 2:
+        scheme_filter = schemes
+        n_results = 6
+        print(f"  [retrieve] multi-scheme filter: {schemes}")
+    else:
+        scheme_filter = None
+        n_results = 3
+
     print(f"  [retrieve] searching with query='{query}'")
-    retrieved_text = search_govt_schemes.invoke(query)
+    retrieved_text = query_vector_store(
+        _collection, query, n_results=n_results, scheme_filter=scheme_filter,
+    )
     print(f"  [retrieve] got {len(retrieved_text)} chars of context")
     return {**state, "retrieved_text": retrieved_text}
 
@@ -71,6 +88,12 @@ def grade(state: AgentState) -> AgentState:
         f"""You are a relevance grader. Given the user question and the 
 retrieved context below, decide if the context contains enough information 
 to answer the question meaningfully.
+
+IMPORTANT: If the user is asking about a SPECIFIC scheme (e.g. "PM SVANidhi",
+"PMEGP", "Stand-Up India"), check whether ALL retrieved chunks pertain to
+that SAME scheme — not just the same general topic like loans or subsidies.
+If chunks mix facts from multiple DIFFERENT schemes, mark as "not_relevant"
+even if individual chunks seem topical.
 
 Reply with EXACTLY one word: "relevant" or "not_relevant".
 
@@ -113,17 +136,59 @@ def generate(state: AgentState) -> AgentState:
     """Produce a grounded answer using the retrieved context."""
     question = state["question"]
     retrieved_text = state["retrieved_text"]
-    print(f"  [generate] producing grounded answer")
-    response = llm.invoke(
-        f"""You are a helpful assistant for a government scheme navigator. 
-Answer using ONLY relevant information below — ignore any chunks that don't 
-actually relate to the question. Be clear and conversational.
+
+    exhausted_retries = (
+        state.get("retries", 0) >= MAX_RETRIES
+        and state.get("relevance") == "not_relevant"
+    )
+
+    if exhausted_retries:
+        print(f"  [generate] max retries exhausted & still not_relevant — cautious answer")
+        response = llm.invoke(
+            f"""You are a helpful assistant for a government scheme navigator 
+called Setu. The user asked the question below, but after searching our 
+database we could NOT find a clearly matching scheme.
+
+Tell the user honestly that no closely matching scheme was found. If the 
+retrieved context below contains anything loosely related, you may mention it 
+as "possibly related" — but do NOT present it as a definitive answer. 
+Suggest they check official portals (myscheme.gov.in) or contact their local 
+Common Service Centre for accurate information.
 
 CONTEXT:
 {retrieved_text}
 
-USER QUESTION: {question}"""
-    )
+USER QUESTION: {question}
+
+STRICT LIMIT: Your response MUST be between 200 and 250 words. Do NOT exceed 
+250 words under any circumstances. Do NOT use tables. Always finish your 
+last sentence completely."""
+        )
+    else:
+        print(f"  [generate] producing grounded answer")
+        response = llm.invoke(
+            f"""You are a helpful assistant for a government scheme navigator. 
+Answer using ONLY relevant information below — ignore any chunks that don't 
+actually relate to the question. Be clear and conversational.
+
+CRITICAL: Every specific number you state (loan amount, subsidy percentage, 
+age limit, income limit, interest rate, etc.) MUST come from the text 
+explicitly labeled with that scheme's name in the context below. If the 
+context contains multiple [Scheme: ...] sections, NEVER attribute a number 
+from one scheme's section to a different scheme. If you are unsure which 
+scheme a number belongs to, do not state it — say the information wasn't 
+found in that scheme's context instead.
+
+CONTEXT:
+{retrieved_text}
+
+USER QUESTION: {question}
+
+STRICT LIMIT: Your response MUST be between 200 and 250 words. Do NOT exceed 
+250 words under any circumstances. Do NOT use tables. Always finish your 
+last sentence completely."""
+        )
+
     return {**state, "answer": response.content}
 
 
@@ -138,7 +203,11 @@ called Setu. The user sent a message that is not about government schemes.
 Respond politely and briefly, then remind them you can help with questions 
 about Indian government financial schemes, loans, and subsidies.
 
-User message: {question}"""
+User message: {question}
+
+STRICT LIMIT: Your response MUST be between 200 and 250 words. Do NOT exceed 
+250 words under any circumstances. Always finish your last sentence 
+completely."""
     )
     return {**state, "answer": response.content}
 

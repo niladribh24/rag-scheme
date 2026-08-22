@@ -6,8 +6,8 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
-from groq import Groq
-from rag_core import build_vector_store, query_vector_store
+from rag_core import build_vector_store
+from agent import agent
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
@@ -20,7 +20,7 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 # Build index once at startup
 collection = build_vector_store()
 
-groq_client = Groq()
+
 
 class Query(BaseModel):
     question: str
@@ -37,23 +37,16 @@ def health_check():
 
 @app.post("/ask")
 def ask(q: Query):
-    retrieved_text = query_vector_store(collection, q.question)
-    response = groq_client.chat.completions.create(
-        model="openai/gpt-oss-20b",
-        max_tokens=300,
-        messages=[{
-            "role": "user",
-            "content": f"""You are a helpful assistant for a government scheme navigator. 
-Answer using ONLY relevant information below — ignore any chunks that don't actually relate to the question. Be clear and conversational.
-
-CONTEXT:
-{retrieved_text}
-
-USER QUESTION: {q.question}
-"""
-        }]
-    )
-    return {"answer": response.choices[0].message.content}
+    result = agent.invoke({
+        "question": q.question,
+        "rewritten_query": "",
+        "retrieved_text": "",
+        "route": "",
+        "relevance": "",
+        "retries": 0,
+        "answer": "",
+    })
+    return {"answer": result["answer"]}
 
 
 class SpeakRequest(BaseModel):

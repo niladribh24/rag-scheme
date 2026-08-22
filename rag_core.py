@@ -269,9 +269,22 @@ def force_rebuild_index() -> chromadb.Collection:
 
 
 def query_vector_store(
-    collection: chromadb.Collection, question: str, n_results: int = 2
+    collection: chromadb.Collection, question: str, n_results: int = 2,
+    scheme_filter: str | list[str] | None = None,
 ) -> str:
     """Query the collection and return the top matching chunks as a single string."""
     query_embedding = _embed([question], "query: ")
-    results = collection.query(query_embeddings=query_embedding, n_results=n_results)
-    return "\n\n".join(results["documents"][0])
+    kwargs: dict = {"query_embeddings": query_embedding, "n_results": n_results}
+    if scheme_filter:
+        if isinstance(scheme_filter, list):
+            kwargs["where"] = {"scheme_name": {"$in": scheme_filter}}
+        else:
+            kwargs["where"] = {"scheme_name": scheme_filter}
+    results = collection.query(**kwargs, include=["documents", "metadatas"])
+    # Log and prefix each chunk with its scheme name
+    chunks = []
+    for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
+        scheme = meta.get("scheme_name", "Unknown")
+        print(f"    [retrieval] chunk scheme_name={scheme}")
+        chunks.append(f"[Scheme: {scheme}]\n{doc}")
+    return "\n\n".join(chunks)
