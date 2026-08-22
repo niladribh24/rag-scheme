@@ -1,24 +1,41 @@
+import asyncio
+import logging
 import os
+import re
 import subprocess
 import tempfile
 import threading
+import time
 from io import BytesIO
 from pathlib import Path
 
+import edge_tts
 import soundfile as sf
 import torch
+from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
+from markdown import markdown
 from parler_tts import ParlerTTSForConditionalGeneration
 from pydantic import BaseModel
 from transformers import AutoModel, AutoTokenizer
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("voice_service")
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR.parent / ".env")
 HF_TOKEN = os.environ["HF_TOKEN"]
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
+# fp16 halves the static VRAM footprint of both models (measured: SraVaani
+# 1.85GB->0.94GB, Indic Parler-TTS 3.83GB->1.90GB) with identical transcription
+# output verified. On CPU, fp16 isn't well supported, so stay fp32 there.
+MODEL_DTYPE = torch.float16 if DEVICE.startswith("cuda") else torch.float32
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB, generous for a few minutes of speech
 MAX_SPEAK_CHARS = 1000  # keeps generation time/VRAM bounded
@@ -26,18 +43,28 @@ MAX_SPEAK_CHARS = 1000  # keeps generation time/VRAM bounded
 app = FastAPI(title="Setu — Voice Service")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-# Both models loaded once at process startup, same pattern as api.py's index build.
-asr_model = AutoModel.from_pretrained(
-    "ARTPARK-IISc/SraVaani-1.0", trust_remote_code=True, token=HF_TOKEN
-).to(DEVICE).eval()
 
+def _gpu_mem_gb() -> str:
+    if not torch.cuda.is_available():
+        return "n/a"
+    return f"{torch.cuda.memory_allocated(DEVICE)/1e9:.2f}GB alloc / {torch.cuda.memory_reserved(DEVICE)/1e9:.2f}GB reserved"
+
+
+logger.info("Loading SraVaani-1.0 (device=%s, dtype=%s)...", DEVICE, MODEL_DTYPE)
+asr_model = AutoModel.from_pretrained(
+    "ARTPARK-IISc/SraVaani-1.0", trust_remote_code=True, token=HF_TOKEN, torch_dtype=MODEL_DTYPE
+).to(DEVICE).eval()
+logger.info("SraVaani-1.0 loaded. GPU memory: %s", _gpu_mem_gb())
+
+logger.info("Loading Indic Parler-TTS (device=%s, dtype=%s)...", DEVICE, MODEL_DTYPE)
 tts_model = ParlerTTSForConditionalGeneration.from_pretrained(
-    "ai4bharat/indic-parler-tts", token=HF_TOKEN
+    "ai4bharat/indic-parler-tts", token=HF_TOKEN, torch_dtype=MODEL_DTYPE
 ).to(DEVICE).eval()
 tts_tokenizer = AutoTokenizer.from_pretrained("ai4bharat/indic-parler-tts", token=HF_TOKEN)
 tts_description_tokenizer = AutoTokenizer.from_pretrained(
     tts_model.config.text_encoder._name_or_path, token=HF_TOKEN
 )
+logger.info("Indic Parler-TTS loaded. GPU memory: %s", _gpu_mem_gb())
 
 DEFAULT_VOICE_DESCRIPTION = (
     "A female speaker delivers a clear, moderate-speed speech with a close "
@@ -57,7 +84,7 @@ class SpeakRequest(BaseModel):
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "device": DEVICE}
+    return {"status": "ok", "device": DEVICE, "gpu_memory": _gpu_mem_gb()}
 
 
 def _convert_to_wav(src_path: str, dst_path: str) -> None:
@@ -69,10 +96,56 @@ def _convert_to_wav(src_path: str, dst_path: str) -> None:
         timeout=30,
     )
     if result.returncode != 0:
+        logger.warning("ffmpeg failed to decode audio: %s", result.stderr.decode(errors="replace")[-500:])
         raise HTTPException(
             status_code=400,
             detail="Could not decode audio. Unsupported or corrupt file.",
         )
+
+
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def _markdown_to_speech_text(raw: str) -> str:
+    """Strip markdown formatting so TTS doesn't try to "speak" **, |, #, etc.
+    The frontend renders the original markdown for display — this only affects
+    what actually gets synthesized."""
+    html = markdown(raw, extensions=["tables"])
+    text = BeautifulSoup(html, "html.parser").get_text(separator=" ", strip=True)
+    return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+# edge-tts needs an explicit voice (it doesn't auto-detect language like
+# Parler-TTS does), so we pick one by scanning the text's Unicode script —
+# the same signal Parler-TTS uses internally, just done by hand here.
+_SCRIPT_VOICE_RANGES = [
+    (range(0x0C80, 0x0D00), "kn-IN-SapnaNeural"),   # Kannada
+    (range(0x0C00, 0x0C80), "te-IN-ShrutiNeural"),  # Telugu
+    (range(0x0900, 0x0980), "hi-IN-SwaraNeural"),   # Devanagari (Hindi)
+]
+_DEFAULT_EDGE_VOICE = "en-IN-NeerjaNeural"
+
+EDGE_TTS_TIMEOUT = 10  # seconds; fall back to local TTS if this is exceeded
+
+
+def _pick_edge_voice(text: str) -> str:
+    for ch in text:
+        cp = ord(ch)
+        for script_range, voice in _SCRIPT_VOICE_RANGES:
+            if cp in script_range:
+                return voice
+    return _DEFAULT_EDGE_VOICE
+
+
+async def _edge_tts_synthesize(text: str, voice: str) -> bytes:
+    communicate = edge_tts.Communicate(text, voice)
+    chunks = bytearray()
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            chunks.extend(chunk["data"])
+    if not chunks:
+        raise RuntimeError("edge-tts returned no audio data")
+    return bytes(chunks)
 
 
 @app.post("/transcribe")
@@ -81,7 +154,9 @@ def transcribe(audio: UploadFile):
     # GPU inference) with no `await` in it. FastAPI runs sync endpoints in a
     # threadpool automatically, so this doesn't block the event loop the way an
     # `async def` with blocking calls inside it would.
+    start = time.monotonic()
     raw = audio.file.read()
+    logger.info("transcribe: received %d bytes (filename=%s)", len(raw), audio.filename)
     if not raw:
         raise HTTPException(status_code=400, detail="Empty audio upload.")
     if len(raw) > MAX_UPLOAD_BYTES:
@@ -94,37 +169,91 @@ def transcribe(audio: UploadFile):
         src.flush()
         _convert_to_wav(src.name, wav.name)
 
-        with gpu_lock:
-            hyps = asr_model.transcribe(wav.name, return_hypotheses=True)
+        try:
+            with gpu_lock:
+                hyps = asr_model.transcribe(wav.name, return_hypotheses=True)
+        except torch.cuda.OutOfMemoryError:
+            torch.cuda.empty_cache()
+            logger.error("transcribe: CUDA OOM. GPU memory: %s", _gpu_mem_gb())
+            raise HTTPException(status_code=503, detail="GPU is out of memory. Please try again.")
 
+    torch.cuda.empty_cache()  # see the note in /speak: keeps reserved memory from ratcheting up
     if not hyps:
         raise HTTPException(status_code=422, detail="Could not transcribe audio.")
+    logger.info(
+        "transcribe: done in %.2fs, %d chars out. GPU memory: %s",
+        time.monotonic() - start, len(hyps[0].text), _gpu_mem_gb(),
+    )
     return {"text": hyps[0].text}
 
 
 @app.post("/speak")
 def speak(req: SpeakRequest):
+    start = time.monotonic()
     text = req.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="text must not be empty.")
+
+    text = _markdown_to_speech_text(text)
+    if not text:
+        raise HTTPException(
+            status_code=400, detail="No speakable content after removing markdown formatting."
+        )
+    # Cap applies to the cleaned text — what actually reaches the model —
+    # not the raw markdown, which is typically longer than its spoken form.
     if len(text) > MAX_SPEAK_CHARS:
         raise HTTPException(
             status_code=413, detail=f"text exceeds {MAX_SPEAK_CHARS} character limit."
         )
+    logger.info("speak: %d chars in", len(text))
 
+    # Primary: edge-tts (cloud, ~3s, better voice quality, free but unofficial).
+    # Any failure — network, timeout, API change — falls back to the fully
+    # local, self-hosted Parler-TTS path below rather than erroring out.
+    voice = _pick_edge_voice(text)
+    try:
+        audio_bytes = asyncio.run(
+            asyncio.wait_for(_edge_tts_synthesize(text, voice), timeout=EDGE_TTS_TIMEOUT)
+        )
+        logger.info(
+            "speak: done via edge-tts (voice=%s) in %.2fs, %d bytes",
+            voice, time.monotonic() - start, len(audio_bytes),
+        )
+        return Response(content=audio_bytes, media_type="audio/mpeg")
+    except Exception as e:
+        logger.warning("speak: edge-tts failed (%s), falling back to local Parler-TTS", e)
+
+    # Fallback: local Parler-TTS.
     description_ids = tts_description_tokenizer(req.description, return_tensors="pt").to(DEVICE)
     prompt_ids = tts_tokenizer(text, return_tensors="pt").to(DEVICE)
 
-    with gpu_lock:
-        generation = tts_model.generate(
-            input_ids=description_ids.input_ids,
-            attention_mask=description_ids.attention_mask,
-            prompt_input_ids=prompt_ids.input_ids,
-            prompt_attention_mask=prompt_ids.attention_mask,
-        )
-    audio_arr = generation.cpu().numpy().squeeze()
+    try:
+        with gpu_lock:
+            generation = tts_model.generate(
+                input_ids=description_ids.input_ids,
+                attention_mask=description_ids.attention_mask,
+                prompt_input_ids=prompt_ids.input_ids,
+                prompt_attention_mask=prompt_ids.attention_mask,
+            )
+    except torch.cuda.OutOfMemoryError:
+        torch.cuda.empty_cache()
+        logger.error("speak: CUDA OOM for %d chars. GPU memory: %s", len(text), _gpu_mem_gb())
+        raise HTTPException(status_code=503, detail="GPU is out of memory. Please try again.")
+
+    audio_arr = generation.float().cpu().numpy().squeeze()
+    del generation
+    # The caching allocator doesn't return freed blocks to the OS on its own —
+    # left alone, `reserved` memory only ratchets upward across requests within
+    # a process. On an 8GB GPU that's shared with the desktop compositor, that
+    # creep can eventually OOM even on modest-length requests. Small perf cost,
+    # but keeps headroom stable across a long-running server session.
+    torch.cuda.empty_cache()
 
     buffer = BytesIO()
     sf.write(buffer, audio_arr, tts_model.config.sampling_rate, format="WAV")
     buffer.seek(0)
+    logger.info(
+        "speak: done via local Parler-TTS in %.2fs, %.1fs of audio. GPU memory after: %s",
+        time.monotonic() - start, len(audio_arr) / tts_model.config.sampling_rate, _gpu_mem_gb(),
+    )
     return StreamingResponse(buffer, media_type="audio/wav")

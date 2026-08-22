@@ -88,4 +88,4 @@ async def speak(req: SpeakRequest):
         raise HTTPException(status_code=503, detail="Voice service is unreachable.")
     if resp.status_code != 200:
         raise HTTPException(status_code=resp.status_code, detail="Speech synthesis failed.")
-    return Response(content=resp.content, media_type="audio/wav")
+    return Response(content=resp.content, media_type=resp.headers.get("content-type", "audio/wav"))
