@@ -10,3 +10,4 @@ PyMuPDF
 python-dotenv
 httpx
 python-multipart
+imageio-ffmpeg

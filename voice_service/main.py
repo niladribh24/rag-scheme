@@ -2,12 +2,42 @@ import asyncio
 import logging
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import threading
 import time
 from io import BytesIO
 from pathlib import Path
+
+
+def _get_ffmpeg_exe() -> str:
+    """Return path to ffmpeg binary, prioritizing system PATH, falling back to imageio_ffmpeg."""
+    ffmpeg_path = shutil.which("ffmpeg")
+    if ffmpeg_path:
+        return ffmpeg_path
+    try:
+        import imageio_ffmpeg
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return "ffmpeg"
+
+
+def _convert_to_wav(src_path: str, dst_path: str) -> None:
+    """Normalize arbitrary browser-recorded audio (webm/opus, ogg, mp3, ...) to
+    16kHz mono WAV, since soundfile/libsndfile can't read most of those directly."""
+    ffmpeg_exe = _get_ffmpeg_exe()
+    result = subprocess.run(
+        [ffmpeg_exe, "-y", "-i", src_path, "-ar", "16000", "-ac", "1", dst_path],
+        capture_output=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        logger.warning("ffmpeg failed to decode audio: %s", result.stderr.decode(errors="replace")[-500:])
+        raise HTTPException(
+            status_code=400,
+            detail="Could not decode audio. Unsupported or corrupt file.",
+        )
 
 import edge_tts
 import soundfile as sf
@@ -87,20 +117,6 @@ def health_check():
     return {"status": "ok", "device": DEVICE, "gpu_memory": _gpu_mem_gb()}
 
 
-def _convert_to_wav(src_path: str, dst_path: str) -> None:
-    """Normalize arbitrary browser-recorded audio (webm/opus, ogg, mp3, ...) to
-    16kHz mono WAV, since soundfile/libsndfile can't read most of those directly."""
-    result = subprocess.run(
-        ["ffmpeg", "-y", "-i", src_path, "-ar", "16000", "-ac", "1", dst_path],
-        capture_output=True,
-        timeout=30,
-    )
-    if result.returncode != 0:
-        logger.warning("ffmpeg failed to decode audio: %s", result.stderr.decode(errors="replace")[-500:])
-        raise HTTPException(
-            status_code=400,
-            detail="Could not decode audio. Unsupported or corrupt file.",
-        )
 
 
 _WHITESPACE_RE = re.compile(r"\s+")
@@ -163,19 +179,36 @@ def transcribe(audio: UploadFile):
         raise HTTPException(status_code=413, detail="Audio file too large.")
 
     suffix = Path(audio.filename or "audio.webm").suffix or ".webm"
-    with tempfile.NamedTemporaryFile(suffix=suffix) as src, \
-         tempfile.NamedTemporaryFile(suffix=".wav") as wav:
-        src.write(raw)
-        src.flush()
-        _convert_to_wav(src.name, wav.name)
+    src_file = tempfile.NamedTemporaryFile(suffix=suffix, delete=False)
+    wav_file = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+    src_path = src_file.name
+    wav_path = wav_file.name
+
+    try:
+        src_file.write(raw)
+        src_file.close()
+        wav_file.close()
+
+        _convert_to_wav(src_path, wav_path)
 
         try:
             with gpu_lock:
-                hyps = asr_model.transcribe(wav.name, return_hypotheses=True)
+                hyps = asr_model.transcribe(wav_path, return_hypotheses=True)
         except torch.cuda.OutOfMemoryError:
             torch.cuda.empty_cache()
             logger.error("transcribe: CUDA OOM. GPU memory: %s", _gpu_mem_gb())
             raise HTTPException(status_code=503, detail="GPU is out of memory. Please try again.")
+    finally:
+        if os.path.exists(src_path):
+            try:
+                os.unlink(src_path)
+            except Exception:
+                pass
+        if os.path.exists(wav_path):
+            try:
+                os.unlink(wav_path)
+            except Exception:
+                pass
 
     torch.cuda.empty_cache()  # see the note in /speak: keeps reserved memory from ratcheting up
     if not hyps:

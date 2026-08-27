@@ -56,11 +56,11 @@ User question: {question}"""
 def retrieve(state: AgentState) -> AgentState:
     """Call query_vector_store with optional scheme-name filtering."""
     query = state.get("rewritten_query") or state["question"]
-    schemes = detect_scheme(state["question"])
+    schemes = detect_scheme(query) or detect_scheme(state["question"])
 
     if len(schemes) == 1:
         scheme_filter = schemes[0]
-        n_results = 3
+        n_results = 4
         print(f"  [retrieve] single scheme filter: '{scheme_filter}'")
     elif len(schemes) >= 2:
         scheme_filter = schemes
@@ -68,7 +68,8 @@ def retrieve(state: AgentState) -> AgentState:
         print(f"  [retrieve] multi-scheme filter: {schemes}")
     else:
         scheme_filter = None
-        n_results = 3
+        n_results = 10
+        print(f"  [retrieve] general discovery query (no filter, n_results=10)")
 
     print(f"  [retrieve] searching with query='{query}'")
     retrieved_text = query_vector_store(
@@ -84,23 +85,32 @@ def grade(state: AgentState) -> AgentState:
     question = state["question"]
     retrieved_text = state["retrieved_text"]
 
-    response = llm.invoke(
-        f"""You are a relevance grader. Given the user question and the 
-retrieved context below, decide if the context contains enough information 
-to answer the question meaningfully.
+    schemes_detected = detect_scheme(question)
+    if schemes_detected:
+        scheme_instruction = (
+            f"The user specifically asked about: {', '.join(schemes_detected)}. "
+            "Check if the retrieved context contains relevant details about at least one of these specific schemes."
+        )
+    else:
+        scheme_instruction = (
+            "The user is asking a general or recommendation question about schemes, loans, or subsidies. "
+            "The retrieved context may contain chunks from multiple DIFFERENT schemes. This is completely NORMAL and EXPECTED. "
+            "Mark as 'relevant' if any of the retrieved chunks provide information on government schemes, loans, subsidies, or eligibility that could help answer the user's intent."
+        )
 
-IMPORTANT: If the user is asking about a SPECIFIC scheme (e.g. "PM SVANidhi",
-"PMEGP", "Stand-Up India"), check whether ALL retrieved chunks pertain to
-that SAME scheme — not just the same general topic like loans or subsidies.
-If chunks mix facts from multiple DIFFERENT schemes, mark as "not_relevant"
-even if individual chunks seem topical.
+    response = llm.invoke(
+        f"""You are a relevance grader for an Indian government financial scheme assistant.
+Given the user question and the retrieved context below, decide if the context contains enough information to answer the question meaningfully.
+
+GUIDELINES:
+{scheme_instruction}
 
 Reply with EXACTLY one word: "relevant" or "not_relevant".
 
 User question: {question}
 
 Retrieved context:
-{retrieved_text[:2000]}"""
+{retrieved_text[:2500]}"""
     )
     relevance = response.content.strip().lower()
     if relevance not in ("relevant", "not_relevant"):
@@ -110,12 +120,12 @@ Retrieved context:
     rewritten_query = state.get("rewritten_query", "")
 
     if relevance == "not_relevant" and retries < MAX_RETRIES:
-        # Rewrite the query for a retry
+        # Rewrite the query for a retry with domain expansion
         rewrite_response = llm.invoke(
             f"""The user asked: "{question}"
-The search returned irrelevant results. Rewrite this as a more specific 
-search query about Indian government financial schemes. Return ONLY the 
-rewritten query, nothing else."""
+The initial vector search returned insufficient results. Rewrite this user question into an expanded search query targeting Indian government financial scheme documents.
+Include relevant domain terms, business category synonyms (e.g. street vendor, micro credit, working capital, small enterprise, collateral free loan, PM SVANidhi, PMEGP, Stand-Up India, Udyogini), and key loan terms if applicable.
+Return ONLY the expanded search query string, nothing else."""
         )
         rewritten_query = rewrite_response.content.strip()
         retries += 1
@@ -160,9 +170,7 @@ CONTEXT:
 
 USER QUESTION: {question}
 
-STRICT LIMIT: Your response MUST be between 200 and 250 words. Do NOT exceed 
-250 words under any circumstances. Do NOT use tables. Always finish your 
-last sentence completely."""
+INSTRUCTION: Keep your response clear, structured, and under 300 words. Do NOT use tables. Always finish your last sentence completely."""
         )
     else:
         print(f"  [generate] producing grounded answer")
@@ -184,9 +192,7 @@ CONTEXT:
 
 USER QUESTION: {question}
 
-STRICT LIMIT: Your response MUST be between 200 and 250 words. Do NOT exceed 
-250 words under any circumstances. Do NOT use tables. Always finish your 
-last sentence completely."""
+INSTRUCTION: Keep your response clear, well-structured, and concise (under 300 words). Do NOT use tables. Always finish your last sentence completely."""
         )
 
     return {**state, "answer": response.content}
