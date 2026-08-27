@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from rag_core import build_vector_store
 from agent import agent
@@ -16,6 +17,7 @@ VOICE_SERVICE_URL = os.environ.get("VOICE_SERVICE_URL", "http://localhost:8001")
 
 app = FastAPI(title="Setu — AI Scheme Navigator API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.mount("/assets", StaticFiles(directory=BASE_DIR / "assets"), name="assets")
 
 # Build index once at startup
 collection = build_vector_store()
@@ -26,9 +28,14 @@ class Query(BaseModel):
     question: str
 
 @app.get("/")
-def serve_frontend():
-    """Serve the frontend HTML at the root URL."""
-    return FileResponse(BASE_DIR / "setu-scheme-navigator.html", media_type="text/html")
+def serve_landing():
+    """Serve the landing/about page HTML at the root URL."""
+    return FileResponse(BASE_DIR / "index.html", media_type="text/html")
+
+@app.get("/chat")
+def serve_chat():
+    """Serve the chat interface HTML."""
+    return FileResponse(BASE_DIR / "chat.html", media_type="text/html")
 
 @app.get("/health")
 def health_check():
