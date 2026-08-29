@@ -1,0 +1,71 @@
+AVYAY - National Action Plan for Senior Citizens: Health and Shelter for Senior Citizens
+Level: National
+Category: Social Justice & Empowerment / Health & Shelter for Senior Citizens
+Key Benefit: Annual recurring grants up to ₹42.11 Lakh for Senior Citizen Homes and ₹30.77 Lakh for Continuous Care Homes, non-recurring grants, plus 90% State Action Plan funding.
+
+===================================================
+ELIGIBILITY CRITERIA
+===================================================
+
+For Senior Citizens (Inmates/Beneficiaries)
+
+* Must be a Senior Citizen.
+* Must be indigent with no sufficient means of self-maintenance (as determined by State Govt), OR
+* Must be afflicted with Alzheimer's disease / Dementia, or seriously ill requiring continuous nursing care (for Continuous Care Homes).
+
+For Implementing Agencies (General & Voluntary Organizations)
+
+* Eligible Entities: State/UT Governments, Panchayati Raj Institutions (PRIs), Urban Local Bodies (ULBs), Govt-recognized educational institutions, youth organizations (NYKS), Public Trusts, Section 25 (now Sec 8) Charitable Companies, Indian Red Cross Society.
+* Registration & Experience (NGOs/VOs):
+   * Registered under Societies Registration Act, 1860, or relevant State/UT Act for at least 2 years.
+   * Minimum 2 years of social sector experience at the time of application.
+   * Joint bank account in the name of the NGO/VO.
+   * Continuous Care Homes: Credible track record in running Charitable Hospitals, Nursing Homes, Medical Institutions, or Colleges.
+* Preference Order: Self Help Groups of Senior Citizens > CSR Foundations > Start-ups in elderly care > NGOs/Trusts.
+
+===================================================
+EXCLUSIONS
+===================================================
+
+* New Mobile Medicare Units are NOT supported under IPSrC.
+* No Grant-in-Aid released for new Physiotherapy Clinics under SAPSrC.
+
+===================================================
+BENEFITS & FINANCIAL ASSISTANCE
+===================================================
+
+Recurring Grants (Annual Grant-in-Aid per Unit)
+
+* Senior Citizen Homes (25 Beneficiaries): ₹24,38,355 (Z Category) to ₹25,04,355 (X Category).
+* Senior Citizen Homes (50 Beneficiaries / 50 Elderly Women): ₹41,12,228 (Z Category) to ₹42,11,228 (X Category).
+* Continuous Care Homes (Min 20 Beneficiaries): ₹30,11,310 (Z Category) to ₹30,77,310 (X Category).
+
+Non-Recurring Grants (Every 5 Years)
+
+* Senior Citizen Homes (25 Indigent): ₹3,09,105 (includes CCTV & website development).
+* Senior Citizen Homes (50 Indigent): ₹4,12,140.
+* Continuous Care Homes (20 Indigent): ₹3,09,105.
+
+Additional Financial Support & Conditions
+
+* Funeral Expenses: Reimbursement up to ₹10,000 per deceased inmate or actual cost (whichever is lower).
+* State Action Plan (SAPSrC): 90% project cost funding.
+* Disbursal Mode: Released via E-anudaan portal and PFMS/EAT module in 2 equal half-yearly instalments (June 30 and Dec 31).
+* Compliance Requirements: Attendance tracked via contactless IT system; live CCTV streaming on portal/website mandatory.
+
+===================================================
+APPLICATION PROCESS & DOCUMENTS
+===================================================
+
+Application Process (Online via E-anudaan Portal)
+
+* Step 01: Survey & Notification – State/UT surveys gap districts. If State cannot establish homes, Central Govt releases open notifications.
+* Step 02: Proposal Submission – Online submission on E-anudaan portal (Fresh proposals by stipulated timeline; Renewal/Ongoing proposals with UCs before April 30th).
+* Step 03: Verification & Screening – District Collector authenticates certificates and submits recommendations/inspection reports by June 15th. Central Screening Committee meets by June 20th; Secretary/Finance approval and sanction issued by June 25th.
+* Step 04: Disbursal – 1st instalment released before June 30th; 2nd instalment released before December 31st based on attendance and inspection reports.
+
+Documents Required
+
+* Organizational/Legal: Registration Certificate, Memorandum of Association (MOA), Project License/Registration from District Authorities, Bye-Laws/Aims, Managing Committee list & details, PAN Card copy, Bond Execution under Rule 231(2) & 3.
+* Financial & Annual Reports: Annual Reports (last 2 years for NGOs), Audited Statement of Accounts (Income-Expenditure, Balance Sheet, Audit Report), Utilization Certificate (GFR 12A / Rule 238 for ongoing projects), Itemized Budget Estimates, Bank Authorization Letter.
+* Project Specific: Qualification-mapped Staff List, Beneficiary List, Notarized Rent/Lease Agreement (or Rural Area Certificate), Beneficiary Satisfactory Certificates (for renewals), State Action Plan & PFMS/EAT compliance documentation.

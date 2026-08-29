@@ -1,0 +1,63 @@
+National Food Security Mission (NFSM)
+Level: National
+Category: Agriculture / DBT / Demonstration & Seed Distribution
+Key Benefit: Production enhancement via cluster demonstrations (up to ₹15,000/ha), DBT seed distribution, nutrient/pest management, and farm machinery support
+
+===================================================
+ELIGIBILITY CRITERIA
+===================================================
+
+For Applicants & Beneficiary Target Allocations
+
+* All farmers are eligible to apply.
+* Land Ceiling: Beneficiaries are entitled to avail assistance across various components up to a maximum of 5 hectares in a single season.
+* Dedicated Allocations:
+   * Scheduled Castes (SCP): 16% of total allocation (or proportionate to SC population in State/District).
+   * Scheduled Tribes (TSP): 8% of total allocation (or proportionate to ST population in State/District).
+   * Small & Marginal Farmers: At least 33% of fund allocation.
+   * Women Farmers: At least 30% of fund allocation.
+
+Criteria for Selection of Districts & Cluster Sizes
+
+* NFSM-Rice & NFSM-Wheat: Districts with area > 50,000 ha and yield below State average.
+* Hill States (HP, J&K, Uttarakhand): Districts with at least 15,000 ha area under rice/wheat.
+* North-Eastern States (excl. Assam): Districts with at least 5,000 ha area under rice.
+* NFSM-Pulses: All districts across 29 states covered.
+* Coarse Cereals (Maize/Barley): Districts covering 70% of total coarse cereal area in the State.
+* NFSM-Nutri-Cereals (Jowar, Bajra, Ragi, Small Millets): All growing states covered.
+* Minimum Cluster Sizes:
+   * State Govt Demonstration: Minimum 100 ha cluster (25 ha for Hilly and North-Eastern States).
+   * ICAR Cluster Front Line Demonstration (CFLD): Minimum 25 ha cluster.
+   * ICAR Front Line Demonstration (FLD): Minimum 1 ha cluster.
+
+===================================================
+BENEFITS & SCHEME COMPONENTS
+===================================================
+
+Core Benefits & Financial Incentives
+
+1. Demonstration Incentives (per hectare):
+   * Sole Crop (excluding coarse cereals): ₹9,000 / ha.
+   * Cropping-System Based Demonstration: ₹15,000 / ha.
+   * Coarse Cereals Demonstration: ₹6,000 / ha.
+2. Seed Distribution Assistance: Direct Benefit Transfer (DBT) assistance for certified seed purchase available up to a maximum area of 2 ha per farmer in a crop season (rates vary by crop).
+3. Additional Support Components: Integrated nutrient & pest management, water carrying pipes, capacity building, and post-harvest technology flexi-components (e.g., Dal Mill, de-stoning, grading, farm machinery).
+
+===================================================
+APPLICATION PROCESS & DOCUMENTS
+===================================================
+
+Application Process (Offline Implementation)
+
+* Step 01: Identification and selection of beneficiary farmers in a transparent, time-bound manner with active involvement of Gram Panchayats and Panchayati Raj Institutions (PRIs).
+* Step 02: Release of funds from Central Government to State Governments upon NFSM Executive Committee approval.
+* Step 03: Fund transfer from State Government to State Level Agency via PFMS / Treasury.
+* Step 04: Allocation of funds from State Level Agency to District Level Agency based on approved district programs.
+* Step 05: Fund release from District Level Agency directly to Implementing Agencies or Beneficiaries.
+
+Documents Required
+
+* Aadhaar details / Govt Photo ID Proof [cite: 25]
+* Caste Certificate (for SC / ST reservation claims) [cite: 25]
+* Bank Account details (for DBT transfer) [cite: 25]
+* Note: Specific document requirements may vary by state and chosen intervention [cite: 25].
