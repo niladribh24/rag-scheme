@@ -8,21 +8,38 @@ from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langgraph.graph import StateGraph, END
 
-from rag_tools import search_govt_schemes, detect_scheme, _collection
-from rag_core import query_vector_store
+from rag_tools import search_govt_schemes, detect_scheme
+from rag_core import build_vector_store, query_vector_store
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
-# ── LLM (same model as api.py / generate_answer.py) ──────────────────────
-llm = ChatGroq(model="openai/gpt-oss-20b", temperature=0, max_tokens=1024)
+# ── LLM ──────────────────────────────────────────────────────────────────
+MODEL_NAME = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
+llm = ChatGroq(model=MODEL_NAME, temperature=0, max_tokens=4096)
 
 MAX_RETRIES = 2
+
+LANG_NAMES = {
+    "hi": "Hindi (हिंदी)",
+    "kn": "Kannada (ಕನ್ನಡ)",
+    "te": "Telugu (తెలుగు)",
+    "en": "English",
+}
+
+
+def get_language_instruction(lang_code: str) -> str:
+    if lang_code and lang_code in LANG_NAMES and lang_code != "en":
+        lang_name = LANG_NAMES[lang_code]
+        return f"\nCRITICAL LANGUAGE MANDATE: You MUST write your ENTIRE final response in {lang_name}. Do NOT answer in English.\n"
+    return ""
 
 
 # ── State ─────────────────────────────────────────────────────────────────
 class AgentState(TypedDict):
     question: str
+    chat_history: list
+    language: str
     rewritten_query: str
     retrieved_text: str
     route: str            # "retrieve" | "direct"
@@ -60,20 +77,20 @@ def retrieve(state: AgentState) -> AgentState:
 
     if len(schemes) == 1:
         scheme_filter = schemes[0]
-        n_results = 4
+        n_results = 3
         print(f"  [retrieve] single scheme filter: '{scheme_filter}'")
     elif len(schemes) >= 2:
         scheme_filter = schemes
-        n_results = 6
+        n_results = 4
         print(f"  [retrieve] multi-scheme filter: {schemes}")
     else:
         scheme_filter = None
-        n_results = 10
-        print(f"  [retrieve] general discovery query (no filter, n_results=10)")
+        n_results = 4
+        print(f"  [retrieve] general discovery query (no filter, n_results=4)")
 
     print(f"  [retrieve] searching with query='{query}'")
     retrieved_text = query_vector_store(
-        _collection, query, n_results=n_results, scheme_filter=scheme_filter,
+        build_vector_store(), query, n_results=n_results, scheme_filter=scheme_filter,
     )
     print(f"  [retrieve] got {len(retrieved_text)} chars of context")
     return {**state, "retrieved_text": retrieved_text}
@@ -110,7 +127,7 @@ Reply with EXACTLY one word: "relevant" or "not_relevant".
 User question: {question}
 
 Retrieved context:
-{retrieved_text[:2500]}"""
+{retrieved_text[:1500]}"""
     )
     relevance = response.content.strip().lower()
     if relevance not in ("relevant", "not_relevant"):
@@ -143,56 +160,50 @@ Return ONLY the expanded search query string, nothing else."""
 
 # ── Node: generate ────────────────────────────────────────────────────────
 def generate(state: AgentState) -> AgentState:
-    """Produce a grounded answer using the retrieved context."""
+    """Generate grounded answer from context."""
     question = state["question"]
-    retrieved_text = state["retrieved_text"]
+    retrieved_text = state["retrieved_text"][:2500]
+    exhausted_retries = (state.get("relevance") == "not_relevant")
+    lang_code = state.get("language", "en")
+    lang_inst = get_language_instruction(lang_code)
 
-    exhausted_retries = (
-        state.get("retries", 0) >= MAX_RETRIES
-        and state.get("relevance") == "not_relevant"
-    )
+    history = state.get("chat_history", [])
+    history_str = ""
+    if history:
+        history_lines = [f"{m.get('sender', 'User')}: {m.get('text', '')}" for m in history[-4:]]
+        history_str = "\nRecent Conversation History:\n" + "\n".join(history_lines) + "\n"
 
     if exhausted_retries:
         print(f"  [generate] max retries exhausted & still not_relevant — cautious answer")
         response = llm.invoke(
-            f"""You are a helpful assistant for a government scheme navigator 
-called Setu. The user asked the question below, but after searching our 
-database we could NOT find a clearly matching scheme.
+            f"""You are a helpful assistant for a government scheme navigator called Setu. 
+The user asked the question below, but after searching our database we could NOT find a clearly matching scheme.
+{lang_inst}
+Tell the user honestly that no closely matching scheme was found. If the retrieved context below contains anything loosely related, you may mention it as "possibly related" — but do NOT present it as a definitive answer. Suggest they check official portals (myscheme.gov.in) or contact their local Common Service Centre for accurate information.
 
-Tell the user honestly that no closely matching scheme was found. If the 
-retrieved context below contains anything loosely related, you may mention it 
-as "possibly related" — but do NOT present it as a definitive answer. 
-Suggest they check official portals (myscheme.gov.in) or contact their local 
-Common Service Centre for accurate information.
-
+{history_str}
 CONTEXT:
 {retrieved_text}
 
 USER QUESTION: {question}
 
-INSTRUCTION: Keep your response clear, structured, and under 300 words. Do NOT use tables. Always finish your last sentence completely."""
+INSTRUCTION: Keep your response clear, structured, and helpful in Markdown. Use bullet points where appropriate. Bold key terms."""
         )
     else:
-        print(f"  [generate] producing grounded answer")
+        print(f"  [generate] producing grounded answer in lang={lang_code}")
         response = llm.invoke(
-            f"""You are a helpful assistant for a government scheme navigator. 
-Answer using ONLY relevant information below — ignore any chunks that don't 
-actually relate to the question. Be clear and conversational.
+            f"""You are a helpful assistant for a government scheme navigator called Setu. 
+Answer using ONLY relevant information below — ignore any chunks that don't relate to the question. Be clear, empathetic, and conversational.
+{lang_inst}
+CRITICAL: Every specific number you state (loan amount, subsidy percentage, age limit, income limit, interest rate, etc.) MUST come from the text explicitly labeled with that scheme's name in the context below. If the context contains multiple [Scheme: ...] sections, NEVER attribute a number from one scheme's section to a different scheme. If you are unsure which scheme a number belongs to, do not state it — say the information wasn't found in that scheme's context instead.
 
-CRITICAL: Every specific number you state (loan amount, subsidy percentage, 
-age limit, income limit, interest rate, etc.) MUST come from the text 
-explicitly labeled with that scheme's name in the context below. If the 
-context contains multiple [Scheme: ...] sections, NEVER attribute a number 
-from one scheme's section to a different scheme. If you are unsure which 
-scheme a number belongs to, do not state it — say the information wasn't 
-found in that scheme's context instead.
-
+{history_str}
 CONTEXT:
 {retrieved_text}
 
 USER QUESTION: {question}
 
-INSTRUCTION: Keep your response clear, well-structured, and concise (under 300 words). Do NOT use tables. Always finish your last sentence completely."""
+INSTRUCTION: Provide a well-structured answer in clean Markdown. Use headings (e.g. ### Eligibility Criteria), bullet points (- item), and bold key figures (loan limits, subsidy %, interest rates). Ensure headings use standard Markdown (e.g. ### Header)."""
         )
 
     return {**state, "answer": response.content}
@@ -202,18 +213,19 @@ INSTRUCTION: Keep your response clear, well-structured, and concise (under 300 w
 def generate_direct(state: AgentState) -> AgentState:
     """Respond directly without retrieval (off-topic / greetings)."""
     question = state["question"]
-    print(f"  [generate_direct] responding without retrieval")
+    lang_code = state.get("language", "en")
+    lang_inst = get_language_instruction(lang_code)
+    print(f"  [generate_direct] responding without retrieval in lang={lang_code}")
     response = llm.invoke(
         f"""You are a helpful assistant for a government scheme navigator 
 called Setu. The user sent a message that is not about government schemes.
+{lang_inst}
 Respond politely and briefly, then remind them you can help with questions 
 about Indian government financial schemes, loans, and subsidies.
 
 User message: {question}
 
-STRICT LIMIT: Your response MUST be between 200 and 250 words. Do NOT exceed 
-250 words under any circumstances. Always finish your last sentence 
-completely."""
+INSTRUCTION: Respond politely and concisely in a few friendly sentences. Always finish your last sentence completely."""
     )
     return {**state, "answer": response.content}
 

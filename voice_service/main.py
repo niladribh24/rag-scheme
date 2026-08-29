@@ -48,9 +48,14 @@ from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from markdown import markdown
-from parler_tts import ParlerTTSForConditionalGeneration
 from pydantic import BaseModel
 from transformers import AutoModel, AutoTokenizer
+
+try:
+    from parler_tts import ParlerTTSForConditionalGeneration
+    HAS_PARLER = True
+except ImportError:
+    HAS_PARLER = False
 
 logging.basicConfig(
     level=logging.INFO,
@@ -60,14 +65,11 @@ logger = logging.getLogger("voice_service")
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR.parent / ".env")
-HF_TOKEN = os.environ["HF_TOKEN"]
+HF_TOKEN = os.environ.get("HF_TOKEN", "")
 DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
-# fp16 halves the static VRAM footprint of both models (measured: SraVaani
-# 1.85GB->0.94GB, Indic Parler-TTS 3.83GB->1.90GB) with identical transcription
-# output verified. On CPU, fp16 isn't well supported, so stay fp32 there.
 MODEL_DTYPE = torch.float16 if DEVICE.startswith("cuda") else torch.float32
 
-MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB, generous for a few minutes of speech
+MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB
 MAX_SPEAK_CHARS = 1000  # keeps generation time/VRAM bounded
 
 app = FastAPI(title="Setu — Voice Service")
@@ -80,21 +82,49 @@ def _gpu_mem_gb() -> str:
     return f"{torch.cuda.memory_allocated(DEVICE)/1e9:.2f}GB alloc / {torch.cuda.memory_reserved(DEVICE)/1e9:.2f}GB reserved"
 
 
-logger.info("Loading SraVaani-1.0 (device=%s, dtype=%s)...", DEVICE, MODEL_DTYPE)
-asr_model = AutoModel.from_pretrained(
-    "ARTPARK-IISc/SraVaani-1.0", trust_remote_code=True, token=HF_TOKEN, torch_dtype=MODEL_DTYPE
-).to(DEVICE).eval()
-logger.info("SraVaani-1.0 loaded. GPU memory: %s", _gpu_mem_gb())
+asr_model = None
+tts_model = None
+tts_tokenizer = None
+tts_description_tokenizer = None
+gpu_lock = threading.Lock()
 
-logger.info("Loading Indic Parler-TTS (device=%s, dtype=%s)...", DEVICE, MODEL_DTYPE)
-tts_model = ParlerTTSForConditionalGeneration.from_pretrained(
-    "ai4bharat/indic-parler-tts", token=HF_TOKEN, torch_dtype=MODEL_DTYPE
-).to(DEVICE).eval()
-tts_tokenizer = AutoTokenizer.from_pretrained("ai4bharat/indic-parler-tts", token=HF_TOKEN)
-tts_description_tokenizer = AutoTokenizer.from_pretrained(
-    tts_model.config.text_encoder._name_or_path, token=HF_TOKEN
-)
-logger.info("Indic Parler-TTS loaded. GPU memory: %s", _gpu_mem_gb())
+
+def get_asr_model():
+    global asr_model
+    if asr_model is None:
+        logger.info("Loading SraVaani-1.0 (device=%s, dtype=%s)...", DEVICE, MODEL_DTYPE)
+        asr_model = AutoModel.from_pretrained(
+            "ARTPARK-IISc/SraVaani-1.0", trust_remote_code=True, token=HF_TOKEN, torch_dtype=MODEL_DTYPE
+        ).to(DEVICE).eval()
+        logger.info("SraVaani-1.0 loaded. GPU memory: %s", _gpu_mem_gb())
+    return asr_model
+
+
+# Pre-warm ASR model in background thread
+def _preload_asr():
+    try:
+        get_asr_model()
+    except Exception as e:
+        logger.warning("Background ASR preloading failed: %s", e)
+
+threading.Thread(target=_preload_asr, daemon=True).start()
+
+
+def get_tts_model():
+    global tts_model, tts_tokenizer, tts_description_tokenizer
+    if not HAS_PARLER:
+        return None, None, None
+    if tts_model is None:
+        logger.info("Loading Indic Parler-TTS (device=%s, dtype=%s)...", DEVICE, MODEL_DTYPE)
+        tts_model = ParlerTTSForConditionalGeneration.from_pretrained(
+            "ai4bharat/indic-parler-tts", token=HF_TOKEN, torch_dtype=MODEL_DTYPE
+        ).to(DEVICE).eval()
+        tts_tokenizer = AutoTokenizer.from_pretrained("ai4bharat/indic-parler-tts", token=HF_TOKEN)
+        tts_description_tokenizer = AutoTokenizer.from_pretrained(
+            tts_model.config.text_encoder._name_or_path, token=HF_TOKEN
+        )
+        logger.info("Indic Parler-TTS loaded. GPU memory: %s", _gpu_mem_gb())
+    return tts_model, tts_tokenizer, tts_description_tokenizer
 
 DEFAULT_VOICE_DESCRIPTION = (
     "A female speaker delivers a clear, moderate-speed speech with a close "
@@ -141,7 +171,7 @@ _SCRIPT_VOICE_RANGES = [
 ]
 _DEFAULT_EDGE_VOICE = "en-IN-NeerjaNeural"
 
-EDGE_TTS_TIMEOUT = 10  # seconds; fall back to local TTS if this is exceeded
+EDGE_TTS_TIMEOUT = 30  # seconds
 
 
 def _pick_edge_voice(text: str) -> str:
@@ -193,7 +223,8 @@ def transcribe(audio: UploadFile):
 
         try:
             with gpu_lock:
-                hyps = asr_model.transcribe(wav_path, return_hypotheses=True)
+                model = get_asr_model()
+                hyps = model.transcribe(wav_path, return_hypotheses=True)
         except torch.cuda.OutOfMemoryError:
             torch.cuda.empty_cache()
             logger.error("transcribe: CUDA OOM. GPU memory: %s", _gpu_mem_gb())
@@ -235,9 +266,8 @@ def speak(req: SpeakRequest):
     # Cap applies to the cleaned text — what actually reaches the model —
     # not the raw markdown, which is typically longer than its spoken form.
     if len(text) > MAX_SPEAK_CHARS:
-        raise HTTPException(
-            status_code=413, detail=f"text exceeds {MAX_SPEAK_CHARS} character limit."
-        )
+        logger.info("speak: text length %d exceeds %d, truncating for audio synthesis", len(text), MAX_SPEAK_CHARS)
+        text = text[:MAX_SPEAK_CHARS].rsplit(" ", 1)[0] + "."
     logger.info("speak: %d chars in", len(text))
 
     # Primary: edge-tts (cloud, ~3s, better voice quality, free but unofficial).

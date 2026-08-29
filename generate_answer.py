@@ -10,7 +10,7 @@ client = Groq()
 
 response = client.chat.completions.create(
     model="openai/gpt-oss-20b",
-    max_tokens=300,
+    max_tokens=2048,
     messages=[{
         "role": "user",
         "content": f"""You are a helpful assistant for a government scheme navigator. 

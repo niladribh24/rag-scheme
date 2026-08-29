@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from rag_core import build_vector_store
+from rag_core import build_vector_store, force_rebuild_index
 from agent import agent
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -23,9 +23,11 @@ app.mount("/assets", StaticFiles(directory=BASE_DIR / "assets"), name="assets")
 collection = build_vector_store()
 
 
-
 class Query(BaseModel):
     question: str
+    history: list = []
+    language: str = "en"
+
 
 @app.get("/")
 def serve_landing():
@@ -42,10 +44,19 @@ def health_check():
     """Health check endpoint."""
     return {"status": "ok", "chunks_indexed": collection.count()}
 
+@app.post("/reindex")
+def reindex():
+    """Force rebuild the vector store index from data/ directory."""
+    global collection
+    collection = force_rebuild_index()
+    return {"status": "success", "chunks_indexed": collection.count()}
+
 @app.post("/ask")
 def ask(q: Query):
     result = agent.invoke({
         "question": q.question,
+        "chat_history": q.history,
+        "language": q.language,
         "rewritten_query": "",
         "retrieved_text": "",
         "route": "",
@@ -66,7 +77,7 @@ async def transcribe(audio: UploadFile):
     """Proxy: forwards recorded audio to the voice service and returns its transcript."""
     raw = await audio.read()
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=120.0) as client:
             resp = await client.post(
                 f"{VOICE_SERVICE_URL}/transcribe",
                 files={"audio": (audio.filename, raw, audio.content_type)},
