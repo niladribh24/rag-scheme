@@ -52,6 +52,27 @@ class AgentState(TypedDict):
 def router(state: AgentState) -> AgentState:
     """Classify the question as scheme-related or off-topic."""
     question = state["question"]
+    history = state.get("chat_history", [])
+    rewritten_query = state.get("rewritten_query", "")
+
+    # Contextualize query if there is history
+    if history and not rewritten_query:
+        history_lines = [f"{m.get('sender', 'User')}: {m.get('text', '')}" for m in history[-4:]]
+        history_str = "\n".join(history_lines)
+        response = llm.invoke(
+            f"""Given the following conversation and a follow up question, rephrase the follow up question to be a standalone question, in its original language, that includes all relevant context (especially the names of any schemes being discussed). If the follow up question is already standalone, just return it.
+
+Chat History:
+{history_str}
+
+Follow Up Question: {question}
+
+Standalone Question:"""
+        )
+        contextualized_question = response.content.strip()
+    else:
+        contextualized_question = rewritten_query or question
+
     response = llm.invoke(
         f"""You are a classifier. Given the user question below, decide if it 
 is about Indian government financial schemes, loans, subsidies, or related 
@@ -60,13 +81,13 @@ eligibility/application topics.
 Reply with EXACTLY one word: "retrieve" if it is scheme-related, or "direct" 
 if it is off-topic, a greeting, or unrelated to government schemes.
 
-User question: {question}"""
+User question: {contextualized_question}"""
     )
     route = response.content.strip().lower()
     if route not in ("retrieve", "direct"):
         route = "retrieve"  # default to retrieval if unsure
-    print(f"  [router] question='{question}' → route={route}")
-    return {**state, "route": route, "retries": state.get("retries", 0)}
+    print(f"  [router] question='{question}' -> contextualized='{contextualized_question}' -> route={route}")
+    return {**state, "route": route, "retries": state.get("retries", 0), "rewritten_query": contextualized_question}
 
 
 # ── Node: retrieve ────────────────────────────────────────────────────────
