@@ -22,8 +22,10 @@ voice_service/test_samples/
 chroma_db/
 
 # Data
-.data
+data/
+data
 .data/
+.data
 
 *.env
 venv/
