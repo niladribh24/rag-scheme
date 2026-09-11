@@ -33,11 +33,16 @@ def _get_model() -> SentenceTransformer:
     return _model
 
 
-def _embed(texts: list[str], prefix: str) -> list[list[float]]:
+def _embed(texts: list[str], prefix: str, show_progress: bool = False) -> list[list[float]]:
     """Embed texts with the given E5 prefix ('passage: ' or 'query: ')."""
     model = _get_model()
     prefixed = [f"{prefix}{t}" for t in texts]
-    return model.encode(prefixed).tolist()
+    return model.encode(
+        prefixed,
+        batch_size=32,
+        show_progress_bar=show_progress,
+        normalize_embeddings=True,
+    ).tolist()
 
 
 def _get_client() -> chromadb.ClientAPI:
@@ -179,11 +184,16 @@ def _parse_file(filepath: Path) -> list[dict]:
     lines = content.split("\n")
     metadata, body_start = _parse_header(lines)
 
+    try:
+        source_rel = str(filepath.relative_to(DATA_DIR)).replace("\\", "/")
+    except ValueError:
+        source_rel = filepath.name
+
     if not metadata.get("scheme_name"):
         logger.warning(
             "No scheme name found in %s, treating as single chunk", filepath.name
         )
-        return [{"text": content.strip(), "metadata": {"source_file": filepath.name}}]
+        return [{"text": content.strip(), "metadata": {"source_file": source_rel}}]
 
     sections = _split_sections(lines[body_start:])
 
@@ -194,7 +204,7 @@ def _parse_file(filepath: Path) -> list[dict]:
         return [
             {
                 "text": content.strip(),
-                "metadata": {**metadata, "source_file": filepath.name},
+                "metadata": {**metadata, "source_file": source_rel},
             }
         ]
 
@@ -205,7 +215,7 @@ def _parse_file(filepath: Path) -> list[dict]:
                 chunk_meta = {
                     **metadata,
                     "section_title": sc["section_title"],
-                    "source_file": filepath.name,
+                    "source_file": source_rel,
                 }
                 chunks.append({"text": sc["text"], "metadata": chunk_meta})
 
@@ -213,12 +223,12 @@ def _parse_file(filepath: Path) -> list[dict]:
 
 
 def load_and_chunk_documents(data_dir: Path = DATA_DIR) -> list[dict]:
-    """Load all .txt files in *data_dir* and return structured chunks.
+    """Load all .txt files in *data_dir* (including subfolders) and return structured chunks.
 
     Each element is ``{"text": str, "metadata": dict}``.
     """
     chunks: list[dict] = []
-    for f in sorted(data_dir.glob("*.txt")):
+    for f in sorted(data_dir.rglob("*.txt")):
         chunks.extend(_parse_file(f))
     return chunks
 
@@ -234,17 +244,21 @@ def build_vector_store() -> chromadb.Collection:
     if COLLECTION_NAME in [c.name for c in existing]:
         return client_db.get_collection(name=COLLECTION_NAME)
     # First run — build from scratch
+    print("[INFO] Initializing ChromaDB vector collection...")
     chunks = load_and_chunk_documents()
     texts = [c["text"] for c in chunks]
     metadatas = [c["metadata"] for c in chunks]
+    print(f"[INFO] Loaded {len(texts)} chunks across data/ repository.")
+    print(f"[INFO] Computing neural embeddings (model: {EMBEDDING_MODEL})...")
     collection = client_db.create_collection(name=COLLECTION_NAME)
-    doc_embeddings = _embed(texts, "passage: ")
+    doc_embeddings = _embed(texts, "passage: ", show_progress=True)
     collection.add(
         documents=texts,
         embeddings=doc_embeddings,
         metadatas=metadatas,
         ids=[f"chunk_{i}" for i in range(len(texts))],
     )
+    print(f"[SUCCESS] Index built successfully with {collection.count()} chunks.")
     return collection
 
 
@@ -257,14 +271,17 @@ def force_rebuild_index() -> chromadb.Collection:
     chunks = load_and_chunk_documents()
     texts = [c["text"] for c in chunks]
     metadatas = [c["metadata"] for c in chunks]
+    print(f"[INFO] Loaded {len(texts)} document chunks from data/ (including subfolders).")
+    print(f"[INFO] Computing neural embeddings with {EMBEDDING_MODEL} (CPU/GPU)...")
     collection = client_db.create_collection(name=COLLECTION_NAME)
-    doc_embeddings = _embed(texts, "passage: ")
+    doc_embeddings = _embed(texts, "passage: ", show_progress=True)
     collection.add(
         documents=texts,
         embeddings=doc_embeddings,
         metadatas=metadatas,
         ids=[f"chunk_{i}" for i in range(len(texts))],
     )
+    print(f"[SUCCESS] Vector store rebuilt! Total chunks indexed: {collection.count()}")
     return collection
 
 

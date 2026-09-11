@@ -21,5 +21,9 @@ voice_service/test_samples/
 # Persisted vector store
 chroma_db/
 
+# Data
+.data
+.data/
+
 *.env
 venv/

@@ -34,15 +34,53 @@ Open `http://localhost:8000` in your browser — `api.py` serves the frontend di
 
 First run of `voice_service` needs its gated Hugging Face models downloaded and cached — see `voice_service/README.md` for the one-time `download_models.py` step and access-request instructions before starting it.
 
+## Automated Scheme Ingestion & Categorization
+
+To expand the dataset without manual data entry, Setu includes an automated fetcher (`scripts/fetch_schemes.py`) that pulls official Central and State government schemes directly from [MyScheme.gov.in](https://www.myscheme.gov.in/).
+
+It normalizes eligibility rules, benefits, application steps, and document checklists, saves them into dedicated category subfolders in `data/`, and automatically rebuilds the ChromaDB vector index.
+
+```bash
+# List all 10+ supported scheme categories & folders
+python scripts/fetch_schemes.py --list-categories
+
+# Fetch 5 schemes under Agriculture into data/agriculture/
+python scripts/fetch_schemes.py --category agriculture --count 5
+
+# Fetch 5 schemes under Business/MSME into data/business_and_msme/
+python scripts/fetch_schemes.py --category business --count 5
+
+# Fetch 3 schemes from EVERY category in one command
+python scripts/fetch_schemes.py --category all --count 3
+
+# Fetch a single scheme by its official slug
+python scripts/fetch_schemes.py --slug pm-kisan
+
+# Search & fetch schemes by keyword query
+python scripts/fetch_schemes.py --query "solar subsidy" --count 3
+```
+
+> **Note:** The fetcher automatically detects existing schemes across all subfolders to prevent duplicates.
+
 ## Project Structure
 
 ```
 ├── api.py                       # FastAPI backend (RAG + /ask, plus /transcribe and /speak proxies)
-├── setu-scheme-navigator.html   # Frontend UI (mic input, markdown-rendered replies, 4 languages)
-├── generate_answer.py           # Standalone test script
-├── data/                        # Scheme text files + source PDFs
-├── scripts/                     # Utility scripts (extract, index, query test)
-└── voice_service/                # Separate FastAPI microservice: ASR (SraVaani) + TTS (edge-tts / Parler-TTS)
+├── chat.html / index.html       # Frontend UI (mic input, markdown-rendered replies, multi-language)
+├── rag_core.py                  # Core RAG pipeline (recursive loader, E5 embeddings, ChromaDB)
+├── data/                        # Categorized scheme repository
+│   ├── agriculture/             # Agriculture, Rural & Farming schemes
+│   ├── business_and_msme/       # MSME, Startups & Entrepreneurship
+│   ├── education_and_learning/  # Scholarships & Student Welfare
+│   ├── women_and_child/         # Women Empowerment & Maternity
+│   ├── health_and_wellness/     # Healthcare & Insurance
+│   ├── housing_and_shelter/     # Housing & Urban/Rural Shelter
+│   └── social_welfare/          # Pensions, Minorities & Disability
+├── scripts/                     # Utility scripts
+│   ├── fetch_schemes.py         # Automated MyScheme fetcher & categorizer
+│   ├── build_index.py           # Force rebuild ChromaDB vector store
+│   └── query_test.py            # CLI query retrieval tester
+└── voice_service/               # Separate FastAPI microservice: ASR + TTS
 ```
 
 See `voice_service/README.md` for voice-service-specific details (models, VRAM handling, TTS fallback behavior).

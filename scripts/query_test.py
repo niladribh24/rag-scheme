@@ -3,6 +3,11 @@ from pathlib import Path
 
 # Allow imports from the project root
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 from rag_core import build_vector_store, _embed
 
