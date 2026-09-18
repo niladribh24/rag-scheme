@@ -9,17 +9,27 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from rag_core import build_vector_store, force_rebuild_index
 from agent import agent
+from db import init_db
+from routers import schemes, calculate, partners, admin, interpret
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
 VOICE_SERVICE_URL = os.environ.get("VOICE_SERVICE_URL", "http://localhost:8001")
 
-app = FastAPI(title="Setu — AI Scheme Navigator API")
+FRONTEND_DIST = BASE_DIR / "frontend" / "dist"
+
+app = FastAPI(title="VittSetu — SC Channel Finance Navigator API")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
-app.mount("/assets", StaticFiles(directory=BASE_DIR / "assets"), name="assets")
+
+app.include_router(schemes.router)
+app.include_router(calculate.router)
+app.include_router(partners.router)
+app.include_router(admin.router)
+app.include_router(interpret.router)
 
 # Build index once at startup
+init_db()
 collection = build_vector_store()
 
 
@@ -28,16 +38,6 @@ class Query(BaseModel):
     history: list = []
     language: str = "en"
 
-
-@app.get("/")
-def serve_landing():
-    """Serve the landing/about page HTML at the root URL."""
-    return FileResponse(BASE_DIR / "index.html", media_type="text/html")
-
-@app.get("/chat")
-def serve_chat():
-    """Serve the chat interface HTML."""
-    return FileResponse(BASE_DIR / "chat.html", media_type="text/html")
 
 @app.get("/health")
 def health_check():
@@ -107,3 +107,21 @@ async def speak(req: SpeakRequest):
     if resp.status_code != 200:
         raise HTTPException(status_code=resp.status_code, detail="Speech synthesis failed.")
     return Response(content=resp.content, media_type=resp.headers.get("content-type", "audio/wav"))
+
+
+# ── Frontend (React SPA) ─────────────────────────────────────────────────
+# Only active once `npm --prefix frontend run build` has produced dist/.
+# During development, run the Vite dev server separately (see README) —
+# its proxy config forwards /api, /ask, /transcribe, /speak, /health to
+# this backend, so this block stays inactive and out of the way.
+if FRONTEND_DIST.exists():
+    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="frontend_assets")
+
+    @app.get("/favicon.svg")
+    def frontend_favicon():
+        return FileResponse(FRONTEND_DIST / "favicon.svg")
+
+    @app.get("/{full_path:path}")
+    def serve_frontend(full_path: str):
+        """SPA fallback: any non-API path renders the React app, which handles routing client-side."""
+        return FileResponse(FRONTEND_DIST / "index.html")

@@ -249,15 +249,18 @@ def build_vector_store() -> chromadb.Collection:
     texts = [c["text"] for c in chunks]
     metadatas = [c["metadata"] for c in chunks]
     print(f"[INFO] Loaded {len(texts)} chunks across data/ repository.")
-    print(f"[INFO] Computing neural embeddings (model: {EMBEDDING_MODEL})...")
     collection = client_db.create_collection(name=COLLECTION_NAME)
-    doc_embeddings = _embed(texts, "passage: ", show_progress=True)
-    collection.add(
-        documents=texts,
-        embeddings=doc_embeddings,
-        metadatas=metadatas,
-        ids=[f"chunk_{i}" for i in range(len(texts))],
-    )
+    if texts:
+        print(f"[INFO] Computing neural embeddings (model: {EMBEDDING_MODEL})...")
+        doc_embeddings = _embed(texts, "passage: ", show_progress=True)
+        collection.add(
+            documents=texts,
+            embeddings=doc_embeddings,
+            metadatas=metadatas,
+            ids=[f"chunk_{i}" for i in range(len(texts))],
+        )
+    else:
+        print("[WARN] No documents found in data/ — collection created empty. Add scheme .txt files and POST /reindex to populate it.")
     print(f"[SUCCESS] Index built successfully with {collection.count()} chunks.")
     return collection
 
@@ -272,15 +275,18 @@ def force_rebuild_index() -> chromadb.Collection:
     texts = [c["text"] for c in chunks]
     metadatas = [c["metadata"] for c in chunks]
     print(f"[INFO] Loaded {len(texts)} document chunks from data/ (including subfolders).")
-    print(f"[INFO] Computing neural embeddings with {EMBEDDING_MODEL} (CPU/GPU)...")
     collection = client_db.create_collection(name=COLLECTION_NAME)
-    doc_embeddings = _embed(texts, "passage: ", show_progress=True)
-    collection.add(
-        documents=texts,
-        embeddings=doc_embeddings,
-        metadatas=metadatas,
-        ids=[f"chunk_{i}" for i in range(len(texts))],
-    )
+    if texts:
+        print(f"[INFO] Computing neural embeddings with {EMBEDDING_MODEL} (CPU/GPU)...")
+        doc_embeddings = _embed(texts, "passage: ", show_progress=True)
+        collection.add(
+            documents=texts,
+            embeddings=doc_embeddings,
+            metadatas=metadatas,
+            ids=[f"chunk_{i}" for i in range(len(texts))],
+        )
+    else:
+        print("[WARN] No documents found in data/ — collection rebuilt empty.")
     print(f"[SUCCESS] Vector store rebuilt! Total chunks indexed: {collection.count()}")
     return collection
 

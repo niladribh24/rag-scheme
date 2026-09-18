@@ -1,8 +1,18 @@
 """LangGraph agent with router → retrieve → grade → generate workflow."""
 
 import os
+import sys
 from pathlib import Path
 from typing import TypedDict
+
+try:
+    # Windows' console defaults to cp1252, which can't encode characters an
+    # LLM response may contain (e.g. non-breaking hyphens) — crashes the
+    # debug print()s below with UnicodeEncodeError otherwise.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq

@@ -11,3 +11,5 @@ python-dotenv
 httpx
 python-multipart
 imageio-ffmpeg
+sqlalchemy
+requests
