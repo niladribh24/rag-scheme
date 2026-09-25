@@ -1,22 +1,47 @@
+import json
 import os
+import sys
 from pathlib import Path
 import httpx
+
+# Windows' default console codepage (cp1252) can't encode some characters an
+# LLM response may contain (e.g. U+2011 non-breaking hyphen), which crashes
+# any print()/logging call that hits stdout — reconfigure to UTF-8 up front.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from rag_core import build_vector_store, force_rebuild_index
-from agent import agent
+from rag_core import build_vector_store, force_rebuild_index, get_index_stats
+from rag_tools import invalidate_scheme_cache
+from agent import agent, stream_answer
 
 BASE_DIR = Path(__file__).resolve().parent
 load_dotenv(BASE_DIR / ".env")
 
 VOICE_SERVICE_URL = os.environ.get("VOICE_SERVICE_URL", "http://localhost:8001")
 
+# CORS: local dev servers (Vite/CRA-style ports) plus the deployed frontend
+# origin, when configured. `ALLOWED_ORIGINS` is a comma-separated list read
+# from .env — falls back to common localhost origins if unset.
+_default_origins = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173,http://localhost:8000,http://127.0.0.1:8000"
+ALLOWED_ORIGINS = [
+    o.strip() for o in os.environ.get("ALLOWED_ORIGINS", _default_origins).split(",") if o.strip()
+]
+
 app = FastAPI(title="Setu — AI Scheme Navigator API")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 app.mount("/assets", StaticFiles(directory=BASE_DIR / "assets"), name="assets")
 
 # Build index once at startup
@@ -41,15 +66,18 @@ def serve_chat():
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint."""
-    return {"status": "ok", "chunks_indexed": collection.count()}
+    """Health check with dynamic corpus stats (total chunks, unique schemes, categories)."""
+    stats = get_index_stats(collection)
+    return {"status": "ok", "chunks_indexed": stats["total_chunks"], **stats}
 
 @app.post("/reindex")
 def reindex():
     """Force rebuild the vector store index from data/ directory."""
     global collection
     collection = force_rebuild_index()
-    return {"status": "success", "chunks_indexed": collection.count()}
+    invalidate_scheme_cache()
+    stats = get_index_stats(collection)
+    return {"status": "success", "chunks_indexed": stats["total_chunks"], **stats}
 
 @app.post("/ask")
 def ask(q: Query):
@@ -58,13 +86,31 @@ def ask(q: Query):
         "chat_history": q.history,
         "language": q.language,
         "rewritten_query": "",
+        "retrieval_query": "",
         "retrieved_text": "",
         "route": "",
         "relevance": "",
         "retries": 0,
+        "should_retry": False,
         "answer": "",
     })
     return {"answer": result["answer"]}
+
+
+@app.post("/ask/stream")
+def ask_stream(q: Query):
+    """SSE endpoint: streams the answer token-by-token as it's generated,
+    instead of the client waiting 4-8s for the full non-streaming response."""
+    def event_stream():
+        try:
+            for token in stream_answer(q.question, q.history, q.language):
+                yield f"data: {json.dumps({'token': token})}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+        finally:
+            yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
 class SpeakRequest(BaseModel):

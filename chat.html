@@ -810,9 +810,70 @@ body.dark-mode .badge-blue {
   margin: 14px 0;
 }
 
+.stream-cursor {
+  display: inline-block;
+  color: var(--primary-blue);
+  animation: streamBlink 0.9s steps(1) infinite;
+}
+@keyframes streamBlink { 50% { opacity: 0; } }
+
 .md-table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; }
 .md-table th, .md-table td { border: 1px solid var(--border-color); padding: 8px 12px; text-align: left; }
 .md-table th { background: var(--border-subtle); font-weight: 600; color: var(--text-heading); }
+
+/* Interactive document checklist ( - [ ] Document Name ) */
+.answer-text ul.md-checklist { list-style: none; margin: 8px 0 12px 0; padding: 0; }
+.answer-text ul.md-checklist .md-checklist-item {
+  display: flex;
+  margin-bottom: 6px;
+}
+.answer-text .md-checklist-item label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-card, #fff);
+  width: 100%;
+  transition: background-color 0.15s, border-color 0.15s;
+}
+.answer-text .md-checklist-item label:hover { border-color: var(--primary-blue); }
+.answer-text .md-checklist-item input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--primary-blue);
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.answer-text .md-checklist-item.checked label {
+  background: var(--primary-blue-light);
+  border-color: var(--primary-blue);
+}
+.answer-text .md-checklist-item.checked span {
+  text-decoration: line-through;
+  color: var(--text-secondary);
+}
+
+/* Official application portal link, rendered as a prominent CTA button */
+.answer-text a.apply-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0;
+  padding: 10px 18px;
+  background: var(--primary-blue);
+  color: #fff;
+  font-weight: 600;
+  font-size: 14px;
+  text-decoration: none;
+  border-radius: 8px;
+  transition: background-color 0.15s;
+}
+.answer-text a.apply-btn:hover { background: var(--primary-blue-hover); }
+.answer-text a:not(.apply-btn) { color: var(--primary-blue); }
 
 /* ==================== COMPOSER CONTAINER ==================== */
 .composer-container {
@@ -942,6 +1003,88 @@ body.dark-mode .badge-blue {
   0% { transform: scale(1); }
   50% { transform: scale(1.1); }
   100% { transform: scale(1); }
+}
+.mic-btn .icon-stop { display: none; }
+.mic-btn.recording .icon-mic { display: none; }
+.mic-btn.recording .icon-stop { display: block; }
+.mic-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* VOICE RECORDING STATUS BAR */
+.composer-card.is-recording {
+  border-color: #DC2626;
+  box-shadow: 0 4px 20px rgba(220, 38, 38, 0.15);
+}
+.voice-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+  border-radius: 12px;
+  background: #FEF2F2;
+  color: #991B1B;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.voice-status[hidden] { display: none; }
+body.dark-mode .voice-status { background: rgba(127, 29, 29, 0.35); color: #FECACA; }
+.voice-status.transcribing { background: var(--primary-blue-light); color: var(--primary-blue); }
+body.dark-mode .voice-status.transcribing { background: rgba(37, 99, 235, 0.18); color: #BFDBFE; }
+
+.rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #DC2626;
+  flex-shrink: 0;
+  animation: rec-blink 1s ease-in-out infinite;
+}
+@keyframes rec-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+.voice-status.transcribing .rec-dot {
+  background: transparent;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  animation: voice-spin 0.8s linear infinite;
+}
+@keyframes voice-spin { to { transform: rotate(360deg); } }
+
+.voice-status-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.voice-timer { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+.voice-status.transcribing .voice-timer,
+.voice-status.transcribing .voice-level,
+.voice-status.transcribing .voice-stop-btn { display: none; }
+
+.voice-level { display: flex; align-items: center; gap: 3px; height: 20px; }
+.voice-level span {
+  width: 3px;
+  height: 4px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: height 0.08s linear;
+}
+/* No mic stream to measure (browser speech recognition path): gentle idle wave instead */
+.voice-level.idle span { animation: voice-wave 1s ease-in-out infinite; }
+.voice-level.idle span:nth-child(2) { animation-delay: 0.1s; }
+.voice-level.idle span:nth-child(3) { animation-delay: 0.2s; }
+.voice-level.idle span:nth-child(4) { animation-delay: 0.3s; }
+.voice-level.idle span:nth-child(5) { animation-delay: 0.4s; }
+@keyframes voice-wave { 0%, 100% { height: 4px; } 50% { height: 16px; } }
+
+.voice-stop-btn {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 4px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+}
+.voice-stop-btn:hover { background: rgba(220, 38, 38, 0.1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .mic-btn.recording, .rec-dot, .voice-level.idle span { animation: none; }
+  .voice-status.transcribing .rec-dot { animation-duration: 2s; }
 }
 
 .send-circle-btn {
@@ -1302,14 +1445,22 @@ body.dark-mode .badge-blue {
     <!-- COMPOSER FOOTER -->
     <div class="composer-container">
       <div class="composer-card">
+        <div class="voice-status" id="voiceStatus" role="status" aria-live="polite" hidden>
+          <span class="rec-dot" aria-hidden="true"></span>
+          <span class="voice-status-label" id="voiceStatusLabel"></span>
+          <div class="voice-level" id="voiceLevel" aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
+          <span class="voice-timer" id="voiceTimer">0:00</span>
+          <button type="button" class="voice-stop-btn" id="voiceStopBtn"></button>
+        </div>
         <textarea id="queryInput" placeholder="Type / for command or ask any scheme question..." rows="1"></textarea>
         
         <div class="composer-toolbar">
           <div class="toolbar-left"></div>
           
           <div class="toolbar-right">
-            <button class="mic-btn" id="micBtn" title="Speak your question">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+            <button class="mic-btn" id="micBtn" title="Speak your question" aria-label="Speak your question" aria-pressed="false">
+              <svg class="icon-stop" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+              <svg class="icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
             </button>
             <button class="send-circle-btn" id="sendBtn" title="Send message">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="m9 18 6-6-6-6"/></svg>
@@ -1456,6 +1607,13 @@ const T = {
     thinking: "Analyzing government scheme guidelines...",
     errorOffline: "Could not connect to backend server. Make sure Setu backend is active.",
     errorGeneric: "An error occurred while evaluating scheme eligibility. Please retry.",
+    voiceListening: "Listening… speak your question",
+    voiceTranscribing: "Transcribing your question…",
+    voiceStop: "Stop",
+    voiceMicDenied: "Microphone access is blocked. Allow the microphone in your browser's site settings, then try again.",
+    voiceNoSpeech: "I couldn't catch that. Tap the mic and try again.",
+    voiceFallback: "Server speech recognition is unavailable, so I've switched to your browser's speech recognition. Tap the mic and ask again.",
+    voiceUnavailable: "Voice input isn't available right now. Please type your question.",
     chips: [
       { icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`, label: "Farmers & Agriculture", query: "I'm a farmer earning under Rs 2 lakh per year, what crop insurance or income schemes am I eligible for?" },
       { icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`, label: "Student Scholarships", query: "My daughter is studying in 10th grade, what government scholarships can we apply for?" },
@@ -1469,6 +1627,13 @@ const T = {
     thinking: "सरकारी योजना दिशानिर्देशों का विश्लेषण किया जा रहा है...",
     errorOffline: "सर्वर से कनेक्ट नहीं हो सका।",
     errorGeneric: "प्रोसेस करते समय कुछ गड़बड़ हुई।",
+    voiceListening: "सुन रहा हूँ… अपना प्रश्न बोलें",
+    voiceTranscribing: "आपका प्रश्न लिखा जा रहा है…",
+    voiceStop: "रोकें",
+    voiceMicDenied: "माइक्रोफ़ोन की अनुमति नहीं मिली। ब्राउज़र सेटिंग में माइक्रोफ़ोन की अनुमति दें और फिर से प्रयास करें।",
+    voiceNoSpeech: "आवाज़ सुनाई नहीं दी। माइक दबाकर फिर से बोलें।",
+    voiceFallback: "सर्वर वॉइस सेवा उपलब्ध नहीं है, इसलिए ब्राउज़र की वॉइस पहचान पर स्विच किया गया है। माइक दबाकर फिर से पूछें।",
+    voiceUnavailable: "वॉइस इनपुट अभी उपलब्ध नहीं है। कृपया अपना प्रश्न टाइप करें।",
     chips: [
       { icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`, label: "किसान और कृषि योजनाएं", query: "मैं किसान हूं और सालाना आय 2 लाख से कम है, फसल बीमा कैसे मिलेगा?" },
       { icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`, label: "छात्रवृत्ति योजनाएं", query: "मेरी बेटी 10वीं कक्षा में है, हम कौन सी सरकारी छात्रवृत्ति के लिए आवेदन कर सकते हैं?" },
@@ -1482,6 +1647,13 @@ const T = {
     thinking: "ಸರ್ಕಾರಿ ಯೋಜನೆಯ ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಲಾಗುತ್ತಿದೆ...",
     errorOffline: "ಸರ್ವರ್ ಸಂಪರ್ಕಿಸಲು ಸಾಧ್ಯವಾಗಲಿಲ್ಲ.",
     errorGeneric: "ದೋಷ ಸಂಭವಿಸಿದೆ.",
+    voiceListening: "ಕೇಳುತ್ತಿದ್ದೇನೆ… ನಿಮ್ಮ ಪ್ರಶ್ನೆ ಹೇಳಿ",
+    voiceTranscribing: "ನಿಮ್ಮ ಪ್ರಶ್ನೆಯನ್ನು ಬರಹಕ್ಕೆ ಪರಿವರ್ತಿಸಲಾಗುತ್ತಿದೆ…",
+    voiceStop: "ನಿಲ್ಲಿಸಿ",
+    voiceMicDenied: "ಮೈಕ್ರೊಫೋನ್ ಅನುಮತಿ ನಿರಾಕರಿಸಲಾಗಿದೆ. ಬ್ರೌಸರ್ ಸೆಟ್ಟಿಂಗ್‌ಗಳಲ್ಲಿ ಅನುಮತಿ ನೀಡಿ ಮತ್ತೆ ಪ್ರಯತ್ನಿಸಿ.",
+    voiceNoSpeech: "ಧ್ವನಿ ಕೇಳಿಸಲಿಲ್ಲ. ಮೈಕ್ ಒತ್ತಿ ಮತ್ತೆ ಹೇಳಿ.",
+    voiceFallback: "ಸರ್ವರ್ ಧ್ವನಿ ಸೇವೆ ಲಭ್ಯವಿಲ್ಲ, ಬ್ರೌಸರ್ ಧ್ವನಿ ಗುರುತಿಸುವಿಕೆಗೆ ಬದಲಾಯಿಸಲಾಗಿದೆ. ಮೈಕ್ ಒತ್ತಿ ಮತ್ತೆ ಕೇಳಿ.",
+    voiceUnavailable: "ಧ್ವನಿ ಇನ್‌ಪುಟ್ ಈಗ ಲಭ್ಯವಿಲ್ಲ. ದಯವಿಟ್ಟು ನಿಮ್ಮ ಪ್ರಶ್ನೆಯನ್ನು ಟೈಪ್ ಮಾಡಿ.",
     chips: [
       { icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`, label: "ರೈತ ಮತ್ತು ಕೃಷಿ ಯೋಜನೆಗಳು", query: "ನಾನು ಕರ್ನಾಟಕದ ರೈತ, ವಾರ್ಷಿಕ ಆದಾಯ 2 ಲಕ್ಷಕ್ಕಿಂತ ಕಡಿಮೆ, ಬೆಳೆ ವಿಮೆ ಪಡೆಯುವುದು ಹೇಗೆ?" },
       { icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`, label: "ವಿದ್ಯಾರ್ಥಿ ವೇತನ", query: "ನನ್ನ ಮಗಳಿಗೆ 10 ನೇ ತರಗತಿ, ಯಾವ ವಿದ್ಯಾರ್ಥಿವೇತನ ಲಭ್ಯವಿದೆ?" },
@@ -1495,6 +1667,13 @@ const T = {
     thinking: "ప్రభుత్వ పథకాల మార్గదర్శకాలను తనిఖీ చేస్తోంది...",
     errorOffline: "సర్వర్ కనెక్ట్ కాలేదు.",
     errorGeneric: "లోపం సంభవించింది.",
+    voiceListening: "వింటున్నాను… మీ ప్రశ్న చెప్పండి",
+    voiceTranscribing: "మీ ప్రశ్నను అక్షరాలుగా మారుస్తోంది…",
+    voiceStop: "ఆపు",
+    voiceMicDenied: "మైక్రోఫోన్ అనుమతి నిరాకరించబడింది. బ్రౌజర్ సెట్టింగ్‌లలో అనుమతి ఇచ్చి మళ్లీ ప్రయత్నించండి.",
+    voiceNoSpeech: "స్వరం వినిపించలేదు. మైక్ నొక్కి మళ్లీ చెప్పండి.",
+    voiceFallback: "సర్వర్ వాయిస్ సేవ అందుబాటులో లేదు, బ్రౌజర్ వాయిస్ గుర్తింపుకు మార్చబడింది. మైక్ నొక్కి మళ్లీ అడగండి.",
+    voiceUnavailable: "వాయిస్ ఇన్‌పుట్ ఇప్పుడు అందుబాటులో లేదు. దయచేసి మీ ప్రశ్నను టైప్ చేయండి.",
     chips: [
       { icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>`, label: "రైతు మరియు వ్యవసాయ పథకాలు", query: "నేను రైతును, వార్షిక ఆదాయం 2 లక్షల కంటే తక్కువ, పంట బీమా ఎలా పొందాలి?" },
       { icon: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>`, label: "స్కాలర్‌షిప్‌లు", query: "నా కూతురు 10వ తరగతి చదువుతోంది, ఏ ప్రభుత్వ స్కాలర్‌షిప్‌లు లభిస్తాయి?" },
@@ -1543,6 +1722,7 @@ function inlineMd(raw) {
   s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
   s = s.replace(/(^|[^*])\*(?!\*)([^*]+?)\*(?!\*)/g, '$1<em>$2</em>');
+  s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   return s;
 }
 
@@ -1557,7 +1737,7 @@ function renderMarkdown(text) {
 
   const closeListIfNeeded = () => {
     if(inList) {
-      html += listType === 'ul' ? '</ul>' : '</ol>';
+      html += listType === 'ol' ? '</ol>' : '</ul>';
       inList = false;
       listType = null;
     }
@@ -1596,6 +1776,30 @@ function renderMarkdown(text) {
       closeListIfNeeded();
       const tag = `h${Math.min(headerMatch[1].length + 1, 4)}`;
       html += `<${tag}>${inlineMd(headerMatch[2])}</${tag}>`;
+      i++;
+      continue;
+    }
+
+    // Document checklist: - [ ] item or - [x] item
+    const checklistMatch = trimmed.match(/^[\*\-]\s+\[([ xX])\]\s+(.+)$/);
+    if(checklistMatch) {
+      if(!inList || listType !== 'checklist') {
+        closeListIfNeeded();
+        html += '<ul class="md-checklist">';
+        inList = true;
+        listType = 'checklist';
+      }
+      const checked = checklistMatch[1].toLowerCase() === 'x';
+      html += `<li class="md-checklist-item${checked ? ' checked' : ''}"><label><input type="checkbox" ${checked ? 'checked' : ''} onchange="this.closest('li').classList.toggle('checked', this.checked)"><span>${inlineMd(checklistMatch[2])}</span></label></li>`;
+      i++;
+      continue;
+    }
+
+    // Whole-line Markdown link ([Apply on Official Portal](url)) -> prominent CTA button
+    const soloLinkMatch = trimmed.match(/^\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)$/);
+    if(soloLinkMatch) {
+      closeListIfNeeded();
+      html += `<a class="apply-btn" href="${soloLinkMatch[2]}" target="_blank" rel="noopener noreferrer">${escapeHtml(soloLinkMatch[1])}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17L17 7M17 7H8M17 7V16"/></svg></a>`;
       i++;
       continue;
     }
@@ -1902,6 +2106,22 @@ function addUserMsg(text) {
   scrollToBottom();
 }
 
+/* Empty bot row appended before any tokens arrive; callers fill
+   .answer-text as chunks stream in via streamBackend(). */
+function createStreamingBotRow() {
+  ensureChatVisible();
+  const row = document.createElement('div');
+  row.className = 'msg-row bot';
+  row.innerHTML = `
+    <div class="bot-avatar">${svgBotAvatar()}</div>
+    <div class="bot-bubble">
+      <div class="answer-text"></div>
+    </div>`;
+  chatMessages.appendChild(row);
+  scrollToBottom();
+  return row;
+}
+
 function addBotMessage(text, audioBlob) {
   ensureChatVisible();
   const row = document.createElement('div');
@@ -1995,11 +2215,62 @@ async function askBackend(question, history = []) {
   return data.answer;
 }
 
+/* Consumes the /ask/stream SSE endpoint, calling onPartial(fullTextSoFar)
+   as each token arrives. Returns the final full answer text. */
+async function streamBackend(question, history, onPartial) {
+  const formattedHistory = history.map(m => ({ sender: m.sender, text: m.text }));
+  const response = await fetch(`${API_BASE}/ask/stream`, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ question, history: formattedHistory, language: currentLang })
+  });
+  if(!response.ok || !response.body) throw new Error(`HTTP ${response.status}`);
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let fullText = '';
+
+  while(true) {
+    const { done, value } = await reader.read();
+    if(done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const parts = buffer.split('\n\n');
+    buffer = parts.pop(); // last part may be an incomplete SSE frame — keep for next read
+
+    for(const part of parts) {
+      const line = part.trim();
+      if(!line.startsWith('data:')) continue;
+      const payload = line.slice(5).trim();
+      if(payload === '[DONE]' || !payload) continue;
+
+      let parsed;
+      try {
+        parsed = JSON.parse(payload);
+      } catch(e) {
+        continue; // ignore malformed SSE frame
+      }
+      if(parsed.error) throw new Error(parsed.error);
+      if(parsed.token) {
+        fullText += parsed.token;
+        onPartial(fullText);
+      }
+    }
+  }
+  return fullText;
+}
+
 async function transcribeAudio(blob) {
   const form = new FormData();
-  form.append('audio', blob, 'query.webm');
+  // Name the upload after its real container (Safari records audio/mp4, not webm)
+  const ext = (blob.type.match(/^audio\/(\w+)/) || [, 'webm'])[1].replace('x-', '');
+  form.append('audio', blob, `query.${ext}`);
   const response = await fetch(`${API_BASE}/transcribe`, { method: 'POST', body: form });
-  if(!response.ok) throw new Error(`Transcription HTTP ${response.status}`);
+  if(!response.ok) {
+    const err = new Error(`Transcription HTTP ${response.status}`);
+    err.status = response.status;
+    throw err;
+  }
   const data = await response.json();
   return data.text;
 }
@@ -2068,20 +2339,62 @@ async function handleQuery(query, opts = {}) {
     } else if(userSettings.detailLevel === 'detailed') {
       backendQuery += " (Note: Please provide detailed step-by-step guidelines, documents required, and complete eligibility criteria.)";
     }
-    const answer = await askBackend(backendQuery, recentHistory);
-    removeThinkingIndicator();
-    if(!answer || !answer.trim()) {
-      addErrorMessage(T[currentLang].errorGeneric);
-    } else {
-      const audioBlob = opts.viaVoice ? await speakText(answer) : null;
-      
-      // Save Bot message
-      session.messages.push({ sender: 'bot', text: answer, timestamp: Date.now() });
-      session.updatedAt = Date.now();
-      saveChatSessions();
 
-      addBotMessage(answer, audioBlob);
-      renderSidebarHistory();
+    let answer;
+    if(opts.viaVoice) {
+      // Voice replies need the complete text up-front to synthesize audio,
+      // so there's nothing to gain from streaming here.
+      answer = await askBackend(backendQuery, recentHistory);
+      removeThinkingIndicator();
+      if(!answer || !answer.trim()) {
+        addErrorMessage(T[currentLang].errorGeneric);
+      } else {
+        const audioBlob = await speakText(answer);
+        session.messages.push({ sender: 'bot', text: answer, timestamp: Date.now() });
+        session.updatedAt = Date.now();
+        saveChatSessions();
+        addBotMessage(answer, audioBlob);
+        renderSidebarHistory();
+      }
+    } else {
+      // Typed queries render tokens live as they stream in, instead of a
+      // blank wait for the full 4-8s response.
+      let streamRow = null;
+      let textEl = null;
+      try {
+        answer = await streamBackend(backendQuery, recentHistory, (partial) => {
+          if(!streamRow) {
+            removeThinkingIndicator();
+            streamRow = createStreamingBotRow();
+            textEl = streamRow.querySelector('.answer-text');
+          }
+          textEl.innerHTML = renderMarkdown(partial) + '<span class="stream-cursor">▊</span>';
+          scrollToBottom();
+        });
+      } catch(streamErr) {
+        // SSE unreachable (proxy buffering, older browser, etc.) — fall
+        // back to the plain non-streaming endpoint instead of failing outright.
+        if(streamRow) streamRow.remove();
+        removeThinkingIndicator();
+        addThinkingIndicator();
+        answer = await askBackend(backendQuery, recentHistory);
+      }
+      removeThinkingIndicator();
+
+      if(!answer || !answer.trim()) {
+        if(streamRow) streamRow.remove();
+        addErrorMessage(T[currentLang].errorGeneric);
+      } else {
+        session.messages.push({ sender: 'bot', text: answer, timestamp: Date.now() });
+        session.updatedAt = Date.now();
+        saveChatSessions();
+        if(streamRow && textEl) {
+          textEl.innerHTML = renderMarkdown(answer);
+        } else {
+          addBotMessage(answer, null);
+        }
+        renderSidebarHistory();
+      }
     }
   } catch(err) {
     removeThinkingIndicator();
@@ -2125,9 +2438,90 @@ window.addEventListener('keydown', (e) => {
 });
 
 /* VOICE RECORDING WITH BROWSER STT FALLBACK */
+const MAX_RECORDING_MS = 60000; // auto-stop so a forgotten mic doesn't record forever
 let mediaRecorder = null;
 let isRecording = false;
 let speechRecognitionObj = null;
+let useBrowserSpeech = false;
+
+const composerCard = document.querySelector('.composer-card');
+const voiceStatus = document.getElementById('voiceStatus');
+const voiceStatusLabel = document.getElementById('voiceStatusLabel');
+const voiceTimer = document.getElementById('voiceTimer');
+const voiceLevel = document.getElementById('voiceLevel');
+const voiceLevelBars = Array.from(voiceLevel.children);
+const voiceStopBtn = document.getElementById('voiceStopBtn');
+
+let recTimerId = null;
+let recAutoStopId = null;
+let meterCtx = null;
+let meterRaf = null;
+
+/* 'recording' | 'transcribing' | null — drives the status bar above the composer */
+function setVoiceUI(state, { stream = null } = {}) {
+  const t = T[currentLang];
+  clearInterval(recTimerId);
+  clearTimeout(recAutoStopId);
+  stopLevelMeter();
+
+  const recording = state === 'recording';
+  micBtn.classList.toggle('recording', recording);
+  micBtn.setAttribute('aria-pressed', String(recording));
+  micBtn.title = recording ? t.voiceStop : 'Speak your question';
+  composerCard.classList.toggle('is-recording', recording);
+  voiceStatus.classList.toggle('transcribing', state === 'transcribing');
+  voiceStatus.hidden = !state;
+  if(!state) return;
+
+  voiceStatusLabel.textContent = recording ? t.voiceListening : t.voiceTranscribing;
+  voiceStopBtn.textContent = t.voiceStop;
+  if(!recording) return;
+
+  const startedAt = Date.now();
+  const tick = () => {
+    const s = Math.floor((Date.now() - startedAt) / 1000);
+    voiceTimer.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  };
+  tick();
+  recTimerId = setInterval(tick, 250);
+  recAutoStopId = setTimeout(stopAnyRecording, MAX_RECORDING_MS);
+  startLevelMeter(stream);
+}
+
+/* Live input-level bars from the mic stream, so the user can see they're being heard */
+function startLevelMeter(stream) {
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if(!stream || !AudioCtx) {
+    voiceLevel.classList.add('idle');
+    return;
+  }
+  voiceLevel.classList.remove('idle');
+  meterCtx = new AudioCtx();
+  const analyser = meterCtx.createAnalyser();
+  analyser.fftSize = 256;
+  meterCtx.createMediaStreamSource(stream).connect(analyser);
+  const data = new Uint8Array(analyser.fftSize);
+  const draw = () => {
+    analyser.getByteTimeDomainData(data);
+    let sum = 0;
+    for(const v of data) sum += ((v - 128) / 128) ** 2;
+    const level = Math.min(1, Math.sqrt(sum / data.length) * 4);
+    voiceLevelBars.forEach((bar, i) => {
+      const shape = [0.55, 0.8, 1, 0.8, 0.55][i];
+      bar.style.height = `${4 + level * shape * 16}px`;
+    });
+    meterRaf = requestAnimationFrame(draw);
+  };
+  draw();
+}
+
+function stopLevelMeter() {
+  cancelAnimationFrame(meterRaf);
+  meterRaf = null;
+  if(meterCtx) { meterCtx.close().catch(() => {}); meterCtx = null; }
+  voiceLevel.classList.remove('idle');
+  voiceLevelBars.forEach(bar => { bar.style.height = ''; });
+}
 
 async function startRecording() {
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -2141,15 +2535,20 @@ async function startRecording() {
   };
   mediaRecorder.start();
   isRecording = true;
-  micBtn.classList.add('recording');
+  setVoiceUI('recording', { stream });
 }
 
 function stopRecording() {
   if(mediaRecorder && isRecording) {
-    mediaRecorder.stop();
     isRecording = false;
-    micBtn.classList.remove('recording');
+    setVoiceUI(null);
+    mediaRecorder.stop();
   }
+}
+
+function stopAnyRecording() {
+  if(speechRecognitionObj) speechRecognitionObj.stop();
+  stopRecording();
 }
 
 function startBrowserSpeechRecognition() {
@@ -2161,68 +2560,106 @@ function startBrowserSpeechRecognition() {
   speechRecognitionObj.lang = langMap[currentLang] || 'en-IN';
   speechRecognitionObj.interimResults = false;
 
+  let handled = false; // result or error already shown to the user
   speechRecognitionObj.onstart = () => {
     isRecording = true;
-    micBtn.classList.add('recording');
+    setVoiceUI('recording');
   };
   speechRecognitionObj.onresult = (e) => {
     const transcript = e.results[0][0].transcript;
     if(transcript && transcript.trim()) {
+      handled = true;
       handleQuery(transcript, { viaVoice: true });
     }
   };
-  speechRecognitionObj.onerror = () => {
-    micBtn.classList.remove('recording');
-    isRecording = false;
+  speechRecognitionObj.onerror = (e) => {
+    handled = true;
+    if(e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+      addErrorMessage(T[currentLang].voiceMicDenied);
+    } else if(e.error === 'no-speech') {
+      addErrorMessage(T[currentLang].voiceNoSpeech);
+    } else if(e.error !== 'aborted') {
+      addErrorMessage(T[currentLang].voiceUnavailable);
+    }
   };
   speechRecognitionObj.onend = () => {
-    micBtn.classList.remove('recording');
     isRecording = false;
+    speechRecognitionObj = null;
+    setVoiceUI(null);
+    if(!handled) addErrorMessage(T[currentLang].voiceNoSpeech);
   };
 
   speechRecognitionObj.start();
   return true;
 }
 
-let useBrowserSpeech = false;
+function canUseBrowserSpeech() {
+  return !!(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
 
 async function handleVoiceQuery(blob) {
   micBtn.disabled = true;
+  setVoiceUI('transcribing');
   try {
     const text = await transcribeAudio(blob);
+    setVoiceUI(null);
     if(text && text.trim()) {
       await handleQuery(text, { viaVoice: true });
+    } else {
+      addErrorMessage(T[currentLang].voiceNoSpeech);
     }
   } catch(err) {
-    // Seamlessly fallback to browser speech recognition
-    useBrowserSpeech = true;
-    startBrowserSpeechRecognition();
+    setVoiceUI(null);
+    // 400/422 mean the service is up but couldn't make out the audio — ask again.
+    // Anything else (503 unreachable, 5xx, network error) means server ASR is down:
+    // switch to the browser's recognizer for next time. It can't re-use this
+    // recording, so tell the user rather than silently starting to listen again.
+    if(err.status === 400 || err.status === 422) {
+      addErrorMessage(T[currentLang].voiceNoSpeech);
+    } else if(canUseBrowserSpeech()) {
+      useBrowserSpeech = true;
+      addErrorMessage(T[currentLang].voiceFallback);
+    } else {
+      addErrorMessage(T[currentLang].voiceUnavailable);
+    }
   } finally {
     micBtn.disabled = false;
   }
 }
 
+function startBrowserSpeechOrReport() {
+  if(!startBrowserSpeechRecognition()) {
+    addErrorMessage(T[currentLang].voiceUnavailable);
+  }
+}
+
 micBtn.addEventListener('click', () => {
   if(isRecording) {
-    if(speechRecognitionObj) speechRecognitionObj.stop();
-    stopRecording();
+    stopAnyRecording();
     return;
   }
   if(isProcessing) return;
 
-  if(useBrowserSpeech || !window.MediaRecorder) {
-    if(!startBrowserSpeechRecognition()) {
-      addErrorMessage('Could not access microphone or Speech Recognition in browser.');
-    }
+  if(useBrowserSpeech || !window.MediaRecorder || !navigator.mediaDevices) {
+    startBrowserSpeechOrReport();
     return;
   }
 
-  startRecording().catch(() => {
-    useBrowserSpeech = true;
-    if(!startBrowserSpeechRecognition()) {
-      addErrorMessage('Could not access microphone or Speech Recognition in browser.');
+  startRecording().catch((err) => {
+    setVoiceUI(null);
+    if(err && (err.name === 'NotAllowedError' || err.name === 'SecurityError')) {
+      addErrorMessage(T[currentLang].voiceMicDenied);
+      return;
     }
+    useBrowserSpeech = true;
+    startBrowserSpeechOrReport();
   });
+});
+
+voiceStopBtn.addEventListener('click', stopAnyRecording);
+
+document.addEventListener('keydown', (e) => {
+  if(e.key === 'Escape' && isRecording) stopAnyRecording();
 });
 
 /* MOBILE SIDEBAR TOGGLE & COLLAPSE */

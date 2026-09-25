@@ -70,7 +70,7 @@ DEVICE = "cuda:0" if torch.cuda.is_available() else "cpu"
 MODEL_DTYPE = torch.float16 if DEVICE.startswith("cuda") else torch.float32
 
 MAX_UPLOAD_BYTES = 25 * 1024 * 1024  # 25MB
-MAX_SPEAK_CHARS = 1000  # keeps generation time/VRAM bounded
+MAX_SPEAK_CHARS = 3000  # keeps generation time/VRAM bounded, without cutting off a typical answer mid-sentence
 
 app = FastAPI(title="Setu — Voice Service")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -150,6 +150,7 @@ def health_check():
 
 
 _WHITESPACE_RE = re.compile(r"\s+")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?।])\s+")
 
 
 def _markdown_to_speech_text(raw: str) -> str:
@@ -159,6 +160,25 @@ def _markdown_to_speech_text(raw: str) -> str:
     html = markdown(raw, extensions=["tables"])
     text = BeautifulSoup(html, "html.parser").get_text(separator=" ", strip=True)
     return _WHITESPACE_RE.sub(" ", text).strip()
+
+
+def _truncate_to_sentences(text: str, max_chars: int) -> str:
+    """Truncate to the longest prefix of whole sentences that fits within
+    max_chars, instead of cutting off mid-sentence at an arbitrary character
+    boundary. Recognizes '।' (Devanagari danda) alongside '.', '!', '?' so
+    Hindi text isn't kept as one giant unsplit sentence."""
+    if len(text) <= max_chars:
+        return text
+    sentences = _SENTENCE_SPLIT_RE.split(text)
+    kept: list[str] = []
+    length = 0
+    for sentence in sentences:
+        if kept and length + len(sentence) + 1 > max_chars:
+            break
+        kept.append(sentence)
+        length += len(sentence) + 1
+    truncated = " ".join(kept).strip()
+    return truncated if truncated else text[:max_chars].rsplit(" ", 1)[0] + "."
 
 
 # edge-tts needs an explicit voice (it doesn't auto-detect language like
@@ -266,8 +286,8 @@ def speak(req: SpeakRequest):
     # Cap applies to the cleaned text — what actually reaches the model —
     # not the raw markdown, which is typically longer than its spoken form.
     if len(text) > MAX_SPEAK_CHARS:
-        logger.info("speak: text length %d exceeds %d, truncating for audio synthesis", len(text), MAX_SPEAK_CHARS)
-        text = text[:MAX_SPEAK_CHARS].rsplit(" ", 1)[0] + "."
+        logger.info("speak: text length %d exceeds %d, truncating to whole sentences", len(text), MAX_SPEAK_CHARS)
+        text = _truncate_to_sentences(text, MAX_SPEAK_CHARS)
     logger.info("speak: %d chars in", len(text))
 
     # Primary: edge-tts (cloud, ~3s, better voice quality, free but unofficial).
@@ -286,13 +306,24 @@ def speak(req: SpeakRequest):
     except Exception as e:
         logger.warning("speak: edge-tts failed (%s), falling back to local Parler-TTS", e)
 
-    # Fallback: local Parler-TTS.
-    description_ids = tts_description_tokenizer(req.description, return_tensors="pt").to(DEVICE)
-    prompt_ids = tts_tokenizer(text, return_tensors="pt").to(DEVICE)
+    # Fallback: local Parler-TTS. get_tts_model() lazy-loads (and caches) the
+    # model on first use — previously this referenced the module-level
+    # tts_model/tts_tokenizer globals directly without ever loading them, so
+    # every edge-tts failure crashed here instead of actually falling back.
+    model, tokenizer, description_tokenizer = get_tts_model()
+    if model is None:
+        logger.error("speak: Parler-TTS fallback unavailable (HAS_PARLER=%s)", HAS_PARLER)
+        raise HTTPException(
+            status_code=503,
+            detail="Speech synthesis is temporarily unavailable. Please use your browser's built-in text-to-speech instead.",
+        )
+
+    description_ids = description_tokenizer(req.description, return_tensors="pt").to(DEVICE)
+    prompt_ids = tokenizer(text, return_tensors="pt").to(DEVICE)
 
     try:
         with gpu_lock:
-            generation = tts_model.generate(
+            generation = model.generate(
                 input_ids=description_ids.input_ids,
                 attention_mask=description_ids.attention_mask,
                 prompt_input_ids=prompt_ids.input_ids,
@@ -313,10 +344,10 @@ def speak(req: SpeakRequest):
     torch.cuda.empty_cache()
 
     buffer = BytesIO()
-    sf.write(buffer, audio_arr, tts_model.config.sampling_rate, format="WAV")
+    sf.write(buffer, audio_arr, model.config.sampling_rate, format="WAV")
     buffer.seek(0)
     logger.info(
         "speak: done via local Parler-TTS in %.2fs, %.1fs of audio. GPU memory after: %s",
-        time.monotonic() - start, len(audio_arr) / tts_model.config.sampling_rate, _gpu_mem_gb(),
+        time.monotonic() - start, len(audio_arr) / model.config.sampling_rate, _gpu_mem_gb(),
     )
     return StreamingResponse(buffer, media_type="audio/wav")

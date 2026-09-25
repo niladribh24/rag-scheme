@@ -1,10 +1,27 @@
 """LangChain tool wrappers for the RAG pipeline."""
 
 import re
+import threading
 from langchain_core.tools import tool
 from rag_core import build_vector_store, query_vector_store
 
-def _get_scheme_aliases() -> dict[str, str]:
+_alias_cache: dict[str, str] | None = None
+_alias_cache_lock = threading.Lock()
+
+
+def invalidate_scheme_cache() -> None:
+    """Clear the cached scheme alias mapping.
+
+    Call this after the vector index is rebuilt (e.g. from /reindex) so
+    newly added or renamed schemes are picked up on the next lookup instead
+    of the stale in-memory mapping.
+    """
+    global _alias_cache
+    with _alias_cache_lock:
+        _alias_cache = None
+
+
+def _build_scheme_aliases() -> dict[str, str]:
     """Build a lookup of known scheme names from the active collection metadata."""
     collection = build_vector_store()
     try:
@@ -13,14 +30,24 @@ def _get_scheme_aliases() -> dict[str, str]:
         return {}
     scheme_names = sorted({m.get("scheme_name", "") for m in metadatas} - {""})
 
+    # Aliases shorter than this are almost never a real scheme acronym and
+    # are prone to false positives — e.g. a scheme name containing an
+    # incidental aside like "[Product (or) Process]" would otherwise
+    # register "or" as an alias, matching the substring "or" inside "for",
+    # "work", "before", etc. in virtually any English sentence.
+    MIN_ALIAS_LEN = 3
+
     aliases: dict[str, str] = {}
     for name in scheme_names:
         aliases[name.lower()] = name
         if "(" in name:
             short = name[: name.index("(")].strip().lower()
-            aliases[short] = name
+            if len(short) >= MIN_ALIAS_LEN:
+                aliases[short] = name
         for abbr in re.findall(r"\(([^)]+)\)", name):
-            aliases[abbr.strip().lower()] = name
+            abbr_clean = abbr.strip().lower()
+            if len(abbr_clean) >= MIN_ALIAS_LEN:
+                aliases[abbr_clean] = name
         cut = len(name)
         for delim in (" Scheme", " - "):
             pos = name.find(delim)
@@ -28,9 +55,25 @@ def _get_scheme_aliases() -> dict[str, str]:
                 cut = min(cut, pos)
         if cut < len(name):
             natural = name[:cut].strip().lower()
-            if natural and natural not in aliases:
+            if len(natural) >= MIN_ALIAS_LEN and natural not in aliases:
                 aliases[natural] = name
     return aliases
+
+
+def _get_scheme_aliases() -> dict[str, str]:
+    """Return the cached scheme alias mapping, building it on first use.
+
+    Previously this ran ``collection.get(...)`` across the entire database
+    on every call (i.e. on every ``detect_scheme()`` invocation). It's now
+    computed once and cached in memory until ``invalidate_scheme_cache()``
+    is called.
+    """
+    global _alias_cache
+    if _alias_cache is None:
+        with _alias_cache_lock:
+            if _alias_cache is None:
+                _alias_cache = _build_scheme_aliases()
+    return _alias_cache
 
 
 def detect_scheme(text: str) -> list[str]:

@@ -2,8 +2,10 @@
 
 import logging
 import re
+import threading
 from pathlib import Path
 import chromadb
+from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -12,13 +14,15 @@ CHROMA_DIR = str(BASE_DIR / "chroma_db")
 
 EMBEDDING_MODEL = "intfloat/multilingual-e5-large"
 COLLECTION_NAME = "scheme_docs_e5"
-MAX_CHUNK_LENGTH = 1500
+MAX_CHUNK_LENGTH = 1100
 MIN_CHUNK_LENGTH = 50
+RRF_K = 60  # standard reciprocal-rank-fusion damping constant
 
 logger = logging.getLogger(__name__)
 
 _SECTION_DELIM_RE = re.compile(r"^={3,}\s*$")
 _SUBSECTION_RE = re.compile(r"^(\d+(?:\.\d+)+)\s+(.+)$")
+_MD_HEADER_RE = re.compile(r"^(#{1,6})\s+(.+)$")
 _HEADER_FIELDS = {"Level": "level", "Category": "category", "Key Benefit": "key_benefit"}
 
 # Lazy-loaded model singleton
@@ -74,10 +78,20 @@ def _parse_header(lines: list[str]) -> tuple[dict, int]:
         if not line:
             body_start = i + 1
             continue
+        matched_field = False
         for prefix, key in _HEADER_FIELDS.items():
             if line.startswith(f"{prefix}:"):
                 metadata[key] = line[len(prefix) + 1 :].strip()
+                matched_field = True
                 break
+        if not matched_field:
+            # First line that's neither blank, a section delimiter, nor a
+            # recognized "Field: value" header — the header block is over.
+            # Without this, a document with no `===` delimiters anywhere
+            # would have every line swallowed as "header", leaving nothing
+            # for the Markdown-header/paragraph fallback splitters below.
+            body_start = i
+            break
         body_start = i + 1
 
     return metadata, body_start
@@ -105,6 +119,63 @@ def _split_sections(lines: list[str]) -> list[tuple[str, list[str]]]:
         else:
             i += 1
     return sections
+
+
+def _split_markdown_headers(lines: list[str]) -> list[tuple[str, list[str]]]:
+    """Fallback split: break body lines on Markdown ATX headers (#, ##, ###...).
+
+    Used when a document has no ``===`` section delimiters at all, so it
+    doesn't collapse into a single oversized chunk. Returns ``[]`` (rather
+    than a single untitled section) when no header actually matched, so the
+    caller can fall through to the paragraph-block fallback instead.
+    """
+    sections: list[tuple[str, list[str]]] = []
+    current_title = ""
+    current_lines: list[str] = []
+    found_header = False
+    for line in lines:
+        m = _MD_HEADER_RE.match(line.strip())
+        if m:
+            # Flush whatever came before this header — including any
+            # leading intro text before the very first header — as its own
+            # section rather than silently dropping it.
+            sections.append((current_title, current_lines))
+            current_title = m.group(2).strip()
+            current_lines = []
+            found_header = True
+        else:
+            current_lines.append(line)
+    if not found_header:
+        return []
+    sections.append((current_title, current_lines))
+    return sections
+
+
+def _split_paragraph_blocks(
+    lines: list[str], max_length: int = MAX_CHUNK_LENGTH
+) -> list[tuple[str, list[str]]]:
+    """Last-resort fallback: group double-newline-separated paragraphs into
+    chunks that stay under *max_length*, for documents with neither ``===``
+    delimiters nor Markdown headers.
+    """
+    text = "\n".join(lines)
+    paragraphs = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    if not paragraphs:
+        return []
+
+    blocks: list[tuple[str, list[str]]] = []
+    current_parts: list[str] = []
+    current_length = 0
+    for para in paragraphs:
+        if current_length + len(para) > max_length and current_parts:
+            blocks.append(("", "\n\n".join(current_parts).split("\n")))
+            current_parts = []
+            current_length = 0
+        current_parts.append(para)
+        current_length += len(para)
+    if current_parts:
+        blocks.append(("", "\n\n".join(current_parts).split("\n")))
+    return blocks
 
 
 def _chunk_section(
@@ -195,11 +266,24 @@ def _parse_file(filepath: Path) -> list[dict]:
         )
         return [{"text": content.strip(), "metadata": {"source_file": source_rel}}]
 
-    sections = _split_sections(lines[body_start:])
+    body_lines = lines[body_start:]
+    sections = _split_sections(body_lines)
+
+    if not sections:
+        logger.info(
+            "No === sections found in %s, falling back to Markdown headers", filepath.name
+        )
+        sections = _split_markdown_headers(body_lines)
+
+    if not sections:
+        logger.info(
+            "No Markdown headers found in %s, falling back to paragraph blocks", filepath.name
+        )
+        sections = _split_paragraph_blocks(body_lines)
 
     if not sections:
         logger.warning(
-            "No === sections found in %s, treating as single chunk", filepath.name
+            "No structure found in %s, treating as single chunk", filepath.name
         )
         return [
             {
@@ -231,6 +315,118 @@ def load_and_chunk_documents(data_dir: Path = DATA_DIR) -> list[dict]:
     for f in sorted(data_dir.rglob("*.txt")):
         chunks.extend(_parse_file(f))
     return chunks
+
+
+# ---------------------------------------------------------------------------
+# BM25 keyword index (kept alongside the dense vector index for hybrid search)
+# ---------------------------------------------------------------------------
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+_bm25_lock = threading.Lock()
+_bm25_state: dict = {
+    "index": None,
+    "ids": None,
+    "documents": None,
+    "metadatas": None,
+    "building": False,
+}
+
+
+def _tokenize(text: str) -> list[str]:
+    return _TOKEN_RE.findall(text.lower())
+
+
+def invalidate_bm25_cache() -> None:
+    """Clear the cached BM25 index so the next query rebuilds it from scratch.
+
+    Call this whenever the vector index is rebuilt (e.g. after /reindex) so
+    keyword search reflects newly added or removed documents.
+    """
+    with _bm25_lock:
+        _bm25_state["index"] = None
+        _bm25_state["ids"] = None
+        _bm25_state["documents"] = None
+        _bm25_state["metadatas"] = None
+        _bm25_state["building"] = False
+
+
+def _ensure_bm25_index(collection: chromadb.Collection) -> dict:
+    """Return the cached BM25 state, building it on first use.
+
+    If another thread is already building the index, returns immediately
+    with ``index=None`` so callers can fall back to pure vector search
+    instead of blocking.
+    """
+    if _bm25_state["index"] is not None or _bm25_state["building"]:
+        return _bm25_state
+    with _bm25_lock:
+        if _bm25_state["index"] is not None or _bm25_state["building"]:
+            return _bm25_state
+        _bm25_state["building"] = True
+    try:
+        data = collection.get(include=["documents", "metadatas"])
+        documents = data.get("documents") or []
+        tokenized = [_tokenize(doc) for doc in documents]
+        index = BM25Okapi(tokenized) if tokenized else None
+        _bm25_state["ids"] = data.get("ids") or []
+        _bm25_state["documents"] = documents
+        _bm25_state["metadatas"] = data.get("metadatas") or []
+        _bm25_state["index"] = index
+    except Exception:
+        logger.exception("Failed to build BM25 index; falling back to vector-only search")
+        _bm25_state["ids"] = None
+        _bm25_state["documents"] = None
+        _bm25_state["metadatas"] = None
+        _bm25_state["index"] = None
+    finally:
+        _bm25_state["building"] = False
+    return _bm25_state
+
+
+def _bm25_search(
+    collection: chromadb.Collection,
+    query: str,
+    top_k: int,
+    scheme_filter: str | list[str] | None = None,
+) -> list[str]:
+    """Return the top-k chunk ids ranked by BM25, optionally restricted to
+    *scheme_filter*. Returns an empty list if the index is unavailable or
+    still (re)building — callers should fall back cleanly to vector-only
+    results in that case.
+    """
+    state = _ensure_bm25_index(collection)
+    if state["building"] or state["index"] is None:
+        return []
+
+    allowed = None
+    if scheme_filter:
+        allowed = set(scheme_filter) if isinstance(scheme_filter, list) else {scheme_filter}
+
+    scores = state["index"].get_scores(_tokenize(query))
+    ranked_indices = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+
+    results: list[str] = []
+    for idx in ranked_indices:
+        if scores[idx] <= 0:
+            break
+        if allowed is not None:
+            scheme_name = state["metadatas"][idx].get("scheme_name")
+            if scheme_name not in allowed:
+                continue
+        results.append(state["ids"][idx])
+        if len(results) >= top_k:
+            break
+    return results
+
+
+def _reciprocal_rank_fusion(rank_lists: list[list[str]], k: int = RRF_K) -> list[str]:
+    """Combine several ranked id lists into one ranking via Reciprocal Rank Fusion."""
+    scores: dict[str, float] = {}
+    for rank_list in rank_lists:
+        for rank, doc_id in enumerate(rank_list):
+            scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank + 1)
+    return sorted(scores, key=lambda doc_id: scores[doc_id], reverse=True)
 
 
 # ---------------------------------------------------------------------------
@@ -281,27 +477,93 @@ def force_rebuild_index() -> chromadb.Collection:
         metadatas=metadatas,
         ids=[f"chunk_{i}" for i in range(len(texts))],
     )
+    invalidate_bm25_cache()
     print(f"[SUCCESS] Vector store rebuilt! Total chunks indexed: {collection.count()}")
     return collection
+
+
+def get_index_stats(collection: chromadb.Collection) -> dict:
+    """Return dynamic stats about the indexed corpus for the /health endpoint."""
+    data = collection.get(include=["metadatas"])
+    metadatas = data.get("metadatas") or []
+    schemes = {m.get("scheme_name") for m in metadatas if m.get("scheme_name")}
+    categories = {m.get("category") for m in metadatas if m.get("category")}
+    return {
+        "total_chunks": collection.count(),
+        "unique_schemes": len(schemes),
+        "categories": sorted(categories),
+    }
+
+
+def _format_citation_header(meta: dict) -> str:
+    """Build a bracketed metadata header carrying enough context for the
+    generator to produce verifiable ``[Scheme: <Name> | Section: ...]`` citations."""
+    parts = [f"Scheme: {meta.get('scheme_name', 'Unknown')}"]
+    if meta.get("level"):
+        parts.append(f"Level: {meta['level']}")
+    if meta.get("category"):
+        parts.append(f"Category: {meta['category']}")
+    if meta.get("section_title"):
+        parts.append(f"Section: {meta['section_title']}")
+    if meta.get("source_file"):
+        parts.append(f"Source: {meta['source_file']}")
+    return "[" + " | ".join(parts) + "]"
 
 
 def query_vector_store(
     collection: chromadb.Collection, question: str, n_results: int = 2,
     scheme_filter: str | list[str] | None = None,
 ) -> str:
-    """Query the collection and return the top matching chunks as a single string."""
+    """Hybrid dense + BM25 retrieval, fused via Reciprocal Rank Fusion (RRF).
+
+    Dense (multilingual-e5) search captures semantic similarity; BM25 catches
+    exact-token matches that embeddings can blur — scheme acronyms
+    (PM-KISAN, PMEGP, MUDRA), specific loan amounts, and age thresholds.
+    Falls back cleanly to pure vector ranking if the BM25 index is
+    unavailable or still (re)building.
+    """
+    fetch_k = max(n_results * 4, 10)
+
     query_embedding = _embed([question], "query: ")
-    kwargs: dict = {"query_embeddings": query_embedding, "n_results": n_results}
+    kwargs: dict = {"query_embeddings": query_embedding, "n_results": fetch_k}
     if scheme_filter:
         if isinstance(scheme_filter, list):
             kwargs["where"] = {"scheme_name": {"$in": scheme_filter}}
         else:
             kwargs["where"] = {"scheme_name": scheme_filter}
-    results = collection.query(**kwargs, include=["documents", "metadatas"])
-    # Log and prefix each chunk with its scheme name
+    dense_results = collection.query(**kwargs, include=["documents", "metadatas"])
+
+    dense_ids = dense_results["ids"][0]
+    lookup: dict[str, tuple[str, dict]] = {
+        doc_id: (doc, meta)
+        for doc_id, doc, meta in zip(
+            dense_ids, dense_results["documents"][0], dense_results["metadatas"][0]
+        )
+    }
+
+    bm25_ids = _bm25_search(collection, question, top_k=fetch_k, scheme_filter=scheme_filter)
+    fused_ids = _reciprocal_rank_fusion([dense_ids, bm25_ids]) if bm25_ids else dense_ids
+    top_ids = fused_ids[:n_results]
+
+    # A BM25-only hit won't be in `lookup` yet (it wasn't in the dense fetch) —
+    # backfill its text/metadata from the BM25 index's own cached corpus.
+    missing = [doc_id for doc_id in top_ids if doc_id not in lookup]
+    if missing and _bm25_state.get("ids"):
+        state_lookup = {
+            i: (d, m)
+            for i, d, m in zip(
+                _bm25_state["ids"], _bm25_state["documents"] or [], _bm25_state["metadatas"] or []
+            )
+        }
+        for doc_id in missing:
+            if doc_id in state_lookup:
+                lookup[doc_id] = state_lookup[doc_id]
+
     chunks = []
-    for doc, meta in zip(results["documents"][0], results["metadatas"][0]):
-        scheme = meta.get("scheme_name", "Unknown")
-        print(f"    [retrieval] chunk scheme_name={scheme}")
-        chunks.append(f"[Scheme: {scheme}]\n{doc}")
+    for doc_id in top_ids:
+        if doc_id not in lookup:
+            continue
+        doc, meta = lookup[doc_id]
+        print(f"    [retrieval] chunk id={doc_id} scheme_name={meta.get('scheme_name', 'Unknown')}")
+        chunks.append(f"{_format_citation_header(meta)}\n{doc}")
     return "\n\n".join(chunks)

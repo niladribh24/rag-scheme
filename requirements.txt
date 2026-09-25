@@ -2,6 +2,7 @@ fastapi
 uvicorn
 chromadb
 sentence-transformers
+rank-bm25
 groq
 langchain
 langchain-groq
@@ -11,3 +12,4 @@ python-dotenv
 httpx
 python-multipart
 imageio-ffmpeg
+pytest

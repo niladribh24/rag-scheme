@@ -17,10 +17,12 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 import requests
+from dotenv import load_dotenv
 
 # Set up project path
 BASE_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(BASE_DIR))
+load_dotenv(BASE_DIR / ".env")
 try:
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -37,7 +39,9 @@ logger = logging.getLogger("scheme_fetcher")
 
 DATA_DIR = BASE_DIR / "data"
 API_BASE_URL = "https://api.myscheme.gov.in"
+# Fallback default only used if MYSCHEME_API_KEY isn't set in the environment/.env.
 DEFAULT_API_KEY = "tYTy5eEhlu9rFjyxuCr7ra7ACp4dv1RH8gWuHTDc"
+API_KEY = os.environ.get("MYSCHEME_API_KEY", DEFAULT_API_KEY)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -45,7 +49,7 @@ HEADERS = {
     "Content-Type": "application/json",
     "Origin": "https://www.myscheme.gov.in",
     "Referer": "https://www.myscheme.gov.in/",
-    "x-api-key": DEFAULT_API_KEY,
+    "x-api-key": API_KEY,
 }
 
 # Standard Category Mappings with discovery search keywords & folder paths
@@ -168,9 +172,12 @@ def parse_slate_nodes(nodes: Any, depth: int = 0, list_type: str = "ul", index: 
 
 
 def sanitize_filename(name: str) -> str:
-    """Create safe filename for a scheme."""
+    """Create a safe, human-readable filename from a scheme's full name
+    (e.g. "Assam Arogya Nidhi" -> "assam_arogya_nidhi.txt"). Always derive
+    this from the full scheme name, not a short-title acronym, so files
+    don't end up named things like "AASS.txt" or "CMAMP.txt"."""
     name = re.sub(r"[^\w\s-]", "", name).strip()
-    clean = re.sub(r"[\s-]+", "_", name)
+    clean = re.sub(r"[\s-]+", "_", name).strip("_").lower()
     return f"{clean}.txt"
 
 
@@ -364,8 +371,23 @@ Documents Required:
 {docs_text.strip()}
 """
 
-    filename = sanitize_filename(basic.get("schemeShortTitle") or name)
+    filename = sanitize_filename(name)
     return filename, doc_content.strip() + "\n", category_str
+
+
+def match_folder_for_categories(categories: Any, default_folder: str) -> str:
+    """Map a scheme's actual returned category labels to the correct data/
+    subfolder, based on CATEGORIES_CONFIG keywords, falling back to
+    *default_folder* if no category matches (e.g. the scheme's real
+    ``basicDetails.schemeCategory`` differs from the search category it was
+    discovered under)."""
+    if isinstance(categories, list):
+        for c in categories:
+            cat_label = (c.get("label") if isinstance(c, dict) else str(c)).lower()
+            for key, conf in CATEGORIES_CONFIG.items():
+                if key in cat_label or any(w in cat_label for w in conf["keywords"][:3]):
+                    return conf["folder"]
+    return default_folder
 
 
 def save_scheme_file(
@@ -411,8 +433,16 @@ def fetch_category_schemes(
             continue
 
         filename, file_content, cat_str = format_scheme_document(details, default_category_label=label)
-        saved_file = save_scheme_file(filename, file_content, folder, target_dir)
-        logger.info(f"  [SAVED] {saved_file.relative_to(target_dir)}")
+        # Don't blindly trust the search category we discovered this scheme
+        # under — inspect its actual returned schemeCategory metadata and
+        # file it in the matching folder instead.
+        actual_categories = details.get("basicDetails", {}).get("schemeCategory", [])
+        actual_folder = match_folder_for_categories(actual_categories, default_folder=folder)
+        saved_file = save_scheme_file(filename, file_content, actual_folder, target_dir)
+        if actual_folder != folder:
+            logger.info(f"  [SAVED] {saved_file.relative_to(target_dir)} (recategorized: '{label}' search -> '{cat_str}')")
+        else:
+            logger.info(f"  [SAVED] {saved_file.relative_to(target_dir)}")
         existing_names.add(slug.lower())
         existing_names.add(name.lower())
         existing_names.add(filename.replace(".txt", "").lower())
@@ -431,17 +461,9 @@ def fetch_by_slug(slug: str, target_dir: Path = DATA_DIR, folder: str = "general
         logger.error(f"Failed to fetch scheme for slug '{slug}'")
         return False
 
-    # Auto-detect folder based on category if possible
-    basic = details.get("basicDetails", {})
-    categories = basic.get("schemeCategory", [])
-    matched_folder = folder
-    if isinstance(categories, list):
-        for c in categories:
-            cat_label = (c.get("label") if isinstance(c, dict) else str(c)).lower()
-            for k, conf in CATEGORIES_CONFIG.items():
-                if k in cat_label or any(w in cat_label for w in conf["keywords"][:3]):
-                    matched_folder = conf["folder"]
-                    break
+    # Auto-detect folder based on the scheme's actual category metadata.
+    categories = details.get("basicDetails", {}).get("schemeCategory", [])
+    matched_folder = match_folder_for_categories(categories, default_folder=folder)
 
     filename, file_content, _ = format_scheme_document(details)
     saved_path = save_scheme_file(filename, file_content, matched_folder, target_dir)
@@ -468,7 +490,9 @@ def fetch_by_query(query: str, count: int = 5, target_dir: Path = DATA_DIR, fold
         if not details:
             continue
         filename, file_content, _ = format_scheme_document(details)
-        saved_path = save_scheme_file(filename, file_content, folder, target_dir)
+        categories = details.get("basicDetails", {}).get("schemeCategory", [])
+        actual_folder = match_folder_for_categories(categories, default_folder=folder)
+        saved_path = save_scheme_file(filename, file_content, actual_folder, target_dir)
         logger.info(f"  [SAVED] {saved_path.relative_to(target_dir)}")
         saved_count += 1
         time.sleep(0.2)

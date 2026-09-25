@@ -274,7 +274,7 @@ footer {
     <div class="card">
       <div class="stats">
         <div class="stat-item">
-          <div class="num">10</div>
+          <div class="num" id="schemesIndexedNum">10</div>
           <div class="lbl">Schemes Indexed</div>
         </div>
         <div class="stat-item">
@@ -312,6 +312,18 @@ footer {
 <footer>
   Setu — AI Scheme Navigator for Indian Citizens.
 </footer>
+
+<script>
+  fetch('/health')
+    .then(res => res.ok ? res.json() : Promise.reject())
+    .then(data => {
+      const el = document.getElementById('schemesIndexedNum');
+      if (el && typeof data.unique_schemes === 'number') {
+        el.textContent = data.unique_schemes;
+      }
+    })
+    .catch(() => { /* keep the static fallback number if /health is unreachable */ });
+</script>
 
 </body>
 </html>
